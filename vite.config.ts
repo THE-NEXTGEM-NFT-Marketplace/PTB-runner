@@ -17,14 +17,14 @@ export default defineConfig(({ mode }) => ({
   },
   build: {
     commonjsOptions: {
-      include: [/node_modules/, /@mysten/],
+      include: [/node_modules/],
     },
     rollupOptions: {
       external: [],
     },
   },
   optimizeDeps: {
-    include: ['@mysten/sui/client', '@mysten/sui/transactions'],
+    include: ['@mysten/sui'],
   },
   define: {
     global: 'globalThis',

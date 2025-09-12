@@ -1,6 +1,6 @@
 // Sui Client Configuration and Utilities
-// Simple approach: use require to avoid build issues
-const { SuiClient, getFullnodeUrl } = require('@mysten/sui/client');
+// Try using the main package import
+import { SuiClient, getFullnodeUrl } from '@mysten/sui';
 
 export type NetworkType = 'mainnet' | 'testnet' | 'devnet';
 
