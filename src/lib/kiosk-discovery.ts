@@ -1,6 +1,5 @@
 // Kiosk Discovery and NFT Management Utilities
 import { suiClient } from './sui-client';
-import { SuiObjectResponse, PaginatedObjectsResponse } from '@mysten/sui/client';
 
 // Rate limiting configuration
 const RATE_LIMIT_DELAY = 100; // 100ms between API calls

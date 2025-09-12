@@ -1,6 +1,6 @@
 // Transaction Block Builder - Converts parsed commands to Sui TransactionBlock
 
-import { Transaction } from "@mysten/sui/transactions";
+import { Transaction } from "@mysten/sui";
 import { type PtbCommand, type PtbArgument } from "./ptb-parser";
 
 export function constructTransactionBlock(commands: PtbCommand[]): Transaction {

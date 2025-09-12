@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Transaction } from "@mysten/sui/transactions";
+import { Transaction } from "@mysten/sui";
 import { useWallet } from "@suiet/wallet-kit";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
