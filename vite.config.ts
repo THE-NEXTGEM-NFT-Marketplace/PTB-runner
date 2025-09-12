@@ -15,4 +15,18 @@ export default defineConfig(({ mode }) => ({
       "@": path.resolve(__dirname, "./src"),
     },
   },
+  build: {
+    commonjsOptions: {
+      include: [/node_modules/, /@mysten/],
+    },
+    rollupOptions: {
+      external: [],
+    },
+  },
+  optimizeDeps: {
+    include: ['@mysten/sui/client', '@mysten/sui/transactions'],
+  },
+  define: {
+    global: 'globalThis',
+  },
 }));

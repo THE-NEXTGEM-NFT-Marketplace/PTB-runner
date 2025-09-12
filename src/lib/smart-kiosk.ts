@@ -2,7 +2,8 @@
 
 import { suiClient } from './sui-client';
 import { getUserKiosks, KioskInfo } from './kiosk-discovery';
-import { Transaction } from '@mysten/sui';
+// Simple approach: use require to avoid build issues
+const { Transaction } = require('@mysten/sui/transactions');
 
 export interface RecipientInfo {
   walletAddress: string;

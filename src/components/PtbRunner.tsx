@@ -1,5 +1,6 @@
 import { useState } from "react";
-import { Transaction } from "@mysten/sui";
+// Simple approach: use require to avoid build issues
+const { Transaction } = require("@mysten/sui/transactions");
 import { useWallet } from "@suiet/wallet-kit";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
