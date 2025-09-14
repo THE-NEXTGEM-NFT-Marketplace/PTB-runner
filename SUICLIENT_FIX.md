@@ -89,11 +89,46 @@ The new client supports all Sui networks:
 3. **Check Wallet**: Ensure your wallet is properly connected
 4. **Check Console**: Look for any error messages in the browser console
 
+### 🔧 **Advanced Debugging Steps:**
+
+#### **Step 1: Run Debug Script**
+Open browser console and run:
+```javascript
+// Load debug script
+const script = document.createElement('script');
+script.src = './debug-client.js';
+document.head.appendChild(script);
+
+// Then run debug
+debugSuiClient();
+```
+
+#### **Step 2: Clear Browser Cache**
+If still having issues, clear the cache:
+```javascript
+// Load cache clearing script
+const script = document.createElement('script');
+script.src = './clear-cache.js';
+document.head.appendChild(script);
+
+// Then clear cache
+clearModuleCache(); // This will reload the page
+```
+
+#### **Step 3: Check Debug Logs**
+Enable debug mode in the website and look for:
+- ✅ "SuiClient test passed on mainnet"
+- ✅ "Direct API call successful"
+- ✅ "Found X kiosks"
+- ❌ Any error messages
+
 ### Common Issues:
 
 - **"No kiosks found"**: You might not have kiosks on the current network
 - **"SuiClient test failed"**: Check your internet connection
 - **"Wallet not connected"**: Make sure your wallet is properly connected
+- **"Still using old SuiClient"**: Clear browser cache and refresh
+- **"Module not found"**: Check if all files are properly saved
 
 ## Benefits
 

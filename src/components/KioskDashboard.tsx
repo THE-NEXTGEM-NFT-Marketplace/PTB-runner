@@ -58,7 +58,7 @@ export function KioskDashboard() {
     try {
       // Test the client connection first
       addDebugLog('Testing SuiClient connection...');
-      const { testSuiClientConnection } = await import('@/lib/simple-sui-client');
+      const { testSuiClientConnection, suiClient } = await import('@/lib/simple-sui-client');
       const clientTest = await testSuiClientConnection(account.address);
       
       if (!clientTest.isWorking) {
@@ -66,6 +66,19 @@ export function KioskDashboard() {
       }
       
       addDebugLog(`SuiClient test passed on ${clientTest.network}`);
+      
+      // Additional test: Try direct API call
+      addDebugLog('Testing direct API call...');
+      try {
+        const directTest = await suiClient.getOwnedObjects({
+          owner: account.address,
+          limit: 1,
+          options: { showContent: false, showType: false }
+        });
+        addDebugLog(`Direct API call successful, found ${directTest.data?.length || 0} objects`);
+      } catch (directError) {
+        addDebugLog(`Direct API call failed: ${directError instanceof Error ? directError.message : String(directError)}`);
+      }
       
       addDebugLog('Fetching user kiosks...');
       const userKiosks = await getUserKiosks(account.address);
