@@ -3,8 +3,26 @@ import {
   bulkTransferNFTs, 
   validateBulkTransfer, 
   getAvailableNFTTypes,
+  testSuiClient,
   BulkTransferResult 
 } from './kiosk-discovery';
+
+/**
+ * Test SuiClient connection before attempting bulk transfer
+ */
+export async function testConnection(walletAddress: string) {
+  console.log('Testing SuiClient connection...');
+  const testResult = await testSuiClient(walletAddress);
+  
+  if (testResult.isWorking) {
+    console.log('✅ SuiClient is working correctly!');
+    console.log('Client info:', testResult.clientInfo);
+    return true;
+  } else {
+    console.error('❌ SuiClient test failed:', testResult.error);
+    return false;
+  }
+}
 
 /**
  * Example function demonstrating bulk NFT transfer
@@ -16,6 +34,13 @@ export async function exampleBulkTransfer() {
   const nftType = '0x2::nft::NFT';
   
   try {
+    // Step 0: Test SuiClient connection first
+    console.log('Step 0: Testing SuiClient connection...');
+    const isConnected = await testConnection(senderWalletAddress);
+    if (!isConnected) {
+      console.error('Cannot proceed - SuiClient is not working');
+      return;
+    }
     // Step 1: Validate the transfer parameters
     console.log('Validating bulk transfer parameters...');
     const validation = await validateBulkTransfer(

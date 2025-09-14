@@ -2,58 +2,80 @@
 // Use a workaround for the package exports issue
 let SuiClient: any;
 let getFullnodeUrl: any;
+let clientLoadPromise: Promise<void> | null = null;
+let isClientLoaded = false;
 
-// Try to load the modules with error handling
-if (typeof window !== 'undefined') {
-  // Browser environment - use dynamic import
-  (async () => {
-    try {
+// Fallback implementations
+const fallbackGetFullnodeUrl = (network: 'mainnet' | 'testnet' | 'devnet'): string => {
+  const urls = {
+    mainnet: 'https://fullnode.mainnet.sui.io:443',
+    testnet: 'https://fullnode.testnet.sui.io:443',
+    devnet: 'https://fullnode.devnet.sui.io:443'
+  };
+  return urls[network] || urls.mainnet;
+};
+
+const fallbackSuiClient = class {
+  private url: string;
+  constructor(options: { url: string }) {
+    this.url = options.url;
+  }
+  async getOwnedObjects(params: any) {
+    throw new Error('SuiClient not properly loaded - please refresh the page');
+  }
+  async getDynamicFields(params: any) {
+    throw new Error('SuiClient not properly loaded - please refresh the page');
+  }
+  async getObject(params: any) {
+    throw new Error('SuiClient not properly loaded - please refresh the page');
+  }
+};
+
+// Initialize fallback values
+getFullnodeUrl = fallbackGetFullnodeUrl;
+SuiClient = fallbackSuiClient;
+
+// Load the actual Sui client modules
+async function loadSuiClient(): Promise<void> {
+  if (isClientLoaded) {
+    return;
+  }
+
+  try {
+    if (typeof window !== 'undefined') {
+      // Browser environment - use dynamic import
       const clientModule = await import('@mysten/sui/client');
       SuiClient = clientModule.SuiClient;
       getFullnodeUrl = clientModule.getFullnodeUrl;
-    } catch (error) {
-      console.warn('Failed to load @mysten/sui/client:', error);
+    } else {
+      // Node.js environment - use require
+      // eslint-disable-next-line @typescript-eslint/no-var-requires
+      const clientModule = require('@mysten/sui/client');
+      SuiClient = clientModule.SuiClient;
+      getFullnodeUrl = clientModule.getFullnodeUrl;
     }
-  })();
-} else {
-  // Node.js environment - use require
-  try {
-    const clientModule = require('@mysten/sui/client');
-    SuiClient = clientModule.SuiClient;
-    getFullnodeUrl = clientModule.getFullnodeUrl;
+    
+    isClientLoaded = true;
+    console.log('SuiClient loaded successfully');
   } catch (error) {
     console.warn('Failed to load @mysten/sui/client:', error);
+    // Keep using fallback implementations
   }
 }
 
-// Fallback implementations
-if (!getFullnodeUrl) {
-  getFullnodeUrl = (network: 'mainnet' | 'testnet' | 'devnet'): string => {
-    const urls = {
-      mainnet: 'https://fullnode.mainnet.sui.io:443',
-      testnet: 'https://fullnode.testnet.sui.io:443',
-      devnet: 'https://fullnode.devnet.sui.io:443'
-    };
-    return urls[network] || urls.mainnet;
-  };
+// Start loading immediately
+if (typeof window !== 'undefined') {
+  clientLoadPromise = loadSuiClient();
+} else {
+  // In Node.js, load synchronously
+  loadSuiClient().catch(console.warn);
 }
 
-if (!SuiClient) {
-  SuiClient = class {
-    private url: string;
-    constructor(options: { url: string }) {
-      this.url = options.url;
-    }
-    async getOwnedObjects(params: any) {
-      throw new Error('SuiClient not properly loaded - please refresh the page');
-    }
-    async getDynamicFields(params: any) {
-      throw new Error('SuiClient not properly loaded - please refresh the page');
-    }
-    async getObject(params: any) {
-      throw new Error('SuiClient not properly loaded - please refresh the page');
-    }
-  };
+// Export function to ensure client is loaded
+export async function ensureSuiClientLoaded(): Promise<void> {
+  if (clientLoadPromise) {
+    await clientLoadPromise;
+  }
 }
 
 export type NetworkType = 'mainnet' | 'testnet' | 'devnet';

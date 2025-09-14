@@ -1,5 +1,5 @@
 // Kiosk Discovery and NFT Management Utilities
-import { suiClient } from './sui-client';
+import { suiClient, ensureSuiClientLoaded } from './sui-client';
 
 // Configuration constants
 const CONFIG = {
@@ -146,6 +146,9 @@ export async function getUserKiosks(walletAddress: string): Promise<KioskInfo[]>
   if (!isValidWalletAddress(walletAddress)) {
     throw new ValidationError('Invalid wallet address format', 'walletAddress');
   }
+
+  // Ensure SuiClient is loaded
+  await ensureSuiClientLoaded();
 
   log('info', 'Starting kiosk discovery', { walletAddress });
   
@@ -396,6 +399,9 @@ export async function getKioskNFTs(kioskId: string): Promise<NFTInfo[]> {
   if (!isValidObjectId(kioskId)) {
     throw new ValidationError('Invalid kiosk ID format', 'kioskId');
   }
+
+  // Ensure SuiClient is loaded
+  await ensureSuiClientLoaded();
 
   log('info', 'Fetching NFTs for kiosk', { kioskId });
   
@@ -703,6 +709,9 @@ export async function getAllUserNFTs(walletAddress: string): Promise<NFTInfo[]> 
     throw new ValidationError('Invalid wallet address format', 'walletAddress');
   }
 
+  // Ensure SuiClient is loaded
+  await ensureSuiClientLoaded();
+
   log('info', 'Fetching all user NFTs', { walletAddress });
   
   try {
@@ -840,6 +849,9 @@ export async function findNFTsDirectly(walletAddress: string): Promise<NFTInfo[]
     throw new ValidationError('Invalid wallet address format', 'walletAddress');
   }
 
+  // Ensure SuiClient is loaded
+  await ensureSuiClientLoaded();
+
   log('info', 'Searching for NFTs directly owned', { walletAddress });
   
   try {
@@ -953,6 +965,9 @@ export async function getAllUserNFTsEnhanced(walletAddress: string): Promise<NFT
   if (!isValidWalletAddress(walletAddress)) {
     throw new ValidationError('Invalid wallet address format', 'walletAddress');
   }
+
+  // Ensure SuiClient is loaded
+  await ensureSuiClientLoaded();
 
   log('info', 'Enhanced NFT discovery started', { walletAddress });
   
@@ -1113,6 +1128,9 @@ export async function getAvailableNFTTypes(walletAddress: string): Promise<NFTSe
     throw new ValidationError('Invalid wallet address format', 'walletAddress');
   }
 
+  // Ensure SuiClient is loaded
+  await ensureSuiClientLoaded();
+
   log('info', 'Getting available NFT types', { walletAddress });
   
   try {
@@ -1161,6 +1179,9 @@ export async function getAvailableNFTTypes(walletAddress: string): Promise<NFTSe
  * @returns Promise resolving to array of BulkTransferRecipient objects
  */
 export async function prepareBulkTransferRecipients(walletAddresses: string[]): Promise<BulkTransferRecipient[]> {
+  // Ensure SuiClient is loaded
+  await ensureSuiClientLoaded();
+  
   log('info', 'Preparing bulk transfer recipients', { recipientCount: walletAddresses.length });
   
   const recipients: BulkTransferRecipient[] = [];
@@ -1335,6 +1356,9 @@ export async function bulkTransferNFTs(
   if (!recipientAddressesInput || recipientAddressesInput.trim().length === 0) {
     throw new ValidationError('Recipient addresses are required', 'recipientAddresses');
   }
+  
+  // Ensure SuiClient is loaded
+  await ensureSuiClientLoaded();
   
   log('info', 'Starting bulk NFT transfer', { 
     senderWalletAddress,
@@ -1511,6 +1535,55 @@ export async function validateBulkTransfer(
       warnings,
       recipientCount: 0,
       availableNFTs: 0
+    };
+  }
+}
+
+/**
+ * Test function to verify SuiClient is working
+ * @param walletAddress - Wallet address to test with
+ * @returns Promise resolving to test result
+ */
+export async function testSuiClient(walletAddress: string): Promise<{
+  isWorking: boolean;
+  error?: string;
+  clientInfo?: any;
+}> {
+  try {
+    // Ensure SuiClient is loaded
+    await ensureSuiClientLoaded();
+    
+    log('info', 'Testing SuiClient connection', { walletAddress });
+    
+    // Try a simple API call
+    const result = await suiClient.getOwnedObjects({
+      owner: walletAddress,
+      limit: 1,
+      options: {
+        showContent: false,
+        showType: false,
+      }
+    });
+    
+    log('info', 'SuiClient test successful', { 
+      walletAddress,
+      objectsFound: result.data.length 
+    });
+    
+    return {
+      isWorking: true,
+      clientInfo: {
+        hasData: result.data.length > 0,
+        objectCount: result.data.length
+      }
+    };
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    log('error', 'SuiClient test failed', { walletAddress, error: errorMessage });
+    
+    return {
+      isWorking: false,
+      error: errorMessage
     };
   }
 }
