@@ -83,16 +83,19 @@ export function KioskDashboard() {
       // Debug: Check what types of objects you have
       addDebugLog('Checking object types...');
       try {
+        // First, get all objects without pagination limit
         const typeTest = await suiClient.getOwnedObjects({
           owner: account.address,
-          limit: 50, // Get more objects
+          limit: 1000, // Get all objects
           options: { showContent: true, showType: true }
         });
         
         addDebugLog(`Raw response structure: ${JSON.stringify(typeTest.data?.[0] || {}, null, 2)}`);
+        addDebugLog(`Response has ${typeTest.data?.length || 0} objects`);
         
-        const types = typeTest.data?.map(obj => {
-          // The type is directly on the object
+        const types = typeTest.data?.map((obj, index) => {
+          // Debug each object
+          addDebugLog(`Object ${index}: type=${obj.type}, objectId=${obj.objectId}`);
           return obj.type || 'unknown';
         }).filter(Boolean) || [];
         
