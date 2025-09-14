@@ -21,12 +21,20 @@ export default defineConfig(({ mode }) => ({
     },
     rollupOptions: {
       external: [],
+      output: {
+        manualChunks: {
+          sui: ['@mysten/sui/client', '@mysten/sui/transactions'],
+        },
+      },
     },
   },
   optimizeDeps: {
-    include: ['@mysten/sui'],
+    include: ['@mysten/sui/client', '@mysten/sui/transactions'],
   },
   define: {
     global: 'globalThis',
+  },
+  esbuild: {
+    target: 'es2020',
   },
 }));
