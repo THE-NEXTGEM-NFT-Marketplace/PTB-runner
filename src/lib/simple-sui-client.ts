@@ -27,9 +27,9 @@ class SimpleSuiClient {
           {
             filter: params.filter,
             options: params.options,
-            limit: params.limit || 50,
-            cursor: params.cursor
-          }
+          },
+          params.cursor ?? null,
+          params.limit ?? 50,
         ]
       })
     });
@@ -59,10 +59,8 @@ class SimpleSuiClient {
         method: 'suix_getDynamicFields',
         params: [
           params.parentId,
-          {
-            limit: params.limit || 50,
-            cursor: params.cursor
-          }
+          params.cursor ?? null,
+          params.limit ?? 50,
         ]
       })
     });
@@ -116,6 +114,43 @@ class SimpleSuiClient {
     
     return data.result;
   }
+
+  async multiGetObjects(params: any) {
+    const response = await fetch(this.url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        jsonrpc: '2.0',
+        id: 1,
+        method: 'sui_multiGetObjects',
+        params: [
+          params.ids,
+          {
+            showContent: params.options?.showContent || false,
+            showType: params.options?.showType || false,
+            showDisplay: params.options?.showDisplay || false,
+            showOwner: params.options?.showOwner || false,
+            showPreviousTransaction: params.options?.showPreviousTransaction || false,
+            showStorageRebate: params.options?.showStorageRebate || false
+          }
+        ]
+      })
+    });
+
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+
+    const data = await response.json();
+
+    if (data.error) {
+      throw new Error(`RPC error: ${data.error.message}`);
+    }
+
+    return data.result;
+  }
 }
 
 // Network configuration
@@ -132,15 +167,18 @@ export function createSuiClient(network: 'mainnet' | 'testnet' | 'devnet' = 'mai
   return new SimpleSuiClient({ url });
 }
 
-// Default client instance
-export const suiClient = createSuiClient('mainnet');
+// Create initial client and export a proxy that always points to it
+let currentNetwork: 'mainnet' | 'testnet' | 'devnet' = 'mainnet';
+let currentClient: SimpleSuiClient = createSuiClient(currentNetwork);
+
+export const suiClient = new Proxy({} as any, {
+  get: (_target, prop) => {
+    return (currentClient as any)[prop as keyof SimpleSuiClient];
+  }
+});
 
 // Export the class for custom instances
 export { SimpleSuiClient as SuiClient };
-
-// Network switching function
-let currentNetwork: 'mainnet' | 'testnet' | 'devnet' = 'mainnet';
-let currentClient = suiClient;
 
 export function switchNetwork(network: 'mainnet' | 'testnet' | 'devnet') {
   currentNetwork = network;
