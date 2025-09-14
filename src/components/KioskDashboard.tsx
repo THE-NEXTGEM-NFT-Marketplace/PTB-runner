@@ -13,7 +13,7 @@ import { NFTGrid } from './NFTGrid';
 import { TransferInterface } from './TransferInterface';
 import { NetworkSwitcher } from './NetworkSwitcher';
 import { useNetwork } from '@/contexts/NetworkContext';
-import { switchNetwork } from '@/lib/sui-client';
+import { switchNetwork } from '@/lib/simple-sui-client';
 
 export function KioskDashboard() {
   const { connected, account } = useWallet();
@@ -56,6 +56,17 @@ export function KioskDashboard() {
     addDebugLog(`Starting kiosk discovery for address: ${account.address}`);
     
     try {
+      // Test the client connection first
+      addDebugLog('Testing SuiClient connection...');
+      const { testSuiClientConnection } = await import('@/lib/simple-sui-client');
+      const clientTest = await testSuiClientConnection(account.address);
+      
+      if (!clientTest.isWorking) {
+        throw new Error(`SuiClient test failed: ${clientTest.error}`);
+      }
+      
+      addDebugLog(`SuiClient test passed on ${clientTest.network}`);
+      
       addDebugLog('Fetching user kiosks...');
       const userKiosks = await getUserKiosks(account.address);
       addDebugLog(`Found ${userKiosks.length} kiosks`);

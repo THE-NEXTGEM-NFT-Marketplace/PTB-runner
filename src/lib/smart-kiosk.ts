@@ -1,6 +1,6 @@
 // Smart Kiosk Management - Handle recipient wallet addresses with automatic kiosk discovery/creation
 
-import { suiClient } from './sui-client';
+import { suiClient } from './simple-sui-client';
 import { getUserKiosks, KioskInfo } from './kiosk-discovery';
 // Use a workaround for the package exports issue
 let Transaction: any;
