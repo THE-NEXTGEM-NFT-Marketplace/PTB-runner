@@ -215,7 +215,7 @@ async function fetchKioskOwnerCaps(walletAddress: string): Promise<SuiOwnedObjec
 }
 
 /**
- * Fetches all owned objects and filters for kiosk-related ones
+ * Fetches all objects and filters for kiosk-related ones
  */
 async function fetchAllObjectsWithFilter(walletAddress: string): Promise<SuiOwnedObjectsResponse> {
   const allObjects: SuiObjectData[] = [];
@@ -556,6 +556,82 @@ async function batchFetchObjects(objectIds: string[]): Promise<SuiObjectData[]> 
     });
     return []; // Return empty array on failure to avoid crashing the whole process
   }
+}
+
+/**
+ * Fetches all owned objects for a wallet with pagination and rate limiting
+ */
+async function fetchAllOwnedObjects(walletAddress: string): Promise<SuiObjectData[]> {
+  const allObjects: SuiObjectData[] = [];
+  let cursor: string | null = null;
+  let paginationCount = 0;
+  
+  do {
+    if (paginationCount >= CONFIG.MAX_PAGINATION_LIMIT) {
+      log('warn', 'Owned objects pagination limit reached', { 
+        walletAddress, 
+        limit: CONFIG.MAX_PAGINATION_LIMIT 
+      });
+      break;
+    }
+    
+    const batch = await withRetry(async () => {
+      return await suiClient.getOwnedObjects({
+        owner: walletAddress,
+        cursor: cursor || undefined,
+        options: {
+          showContent: true,
+          showType: true,
+          showDisplay: true,
+        }
+      }) as SuiOwnedObjectsResponse;
+    });
+    
+    allObjects.push(...batch.data);
+    cursor = batch.nextCursor;
+    paginationCount++;
+    
+    // Rate limiting
+    if (cursor) {
+      await delay(CONFIG.RATE_LIMIT_DELAY);
+    }
+    
+    log('debug', 'Fetched batch of owned objects', { 
+      walletAddress,
+      batchSize: batch.data.length, 
+      totalSoFar: allObjects.length 
+    });
+  } while (cursor);
+  
+  log('info', 'All owned objects fetched', { 
+    walletAddress,
+    totalObjects: allObjects.length 
+  });
+  
+  return allObjects;
+}
+
+/**
+ * Checks if an object appears to be an NFT
+ */
+function isNFTObject(obj: SuiObjectData): boolean {
+  if (!obj.type) return false;
+  
+  // The type is sometimes nested inside obj.data
+  const type = obj.data?.type || obj.type;
+  if (!type) return false;
+
+  const hasNFTType = type.includes('nft') || 
+                    type.includes('NFT') ||
+                    type.includes('collectible');
+  
+  const displayData = obj.data?.display?.data || obj.display?.data;
+  const hasDisplayData = Boolean(displayData && (
+    displayData.name || 
+    displayData.image_url
+  ));
+  
+  return hasNFTType || hasDisplayData;
 }
 
 
