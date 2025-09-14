@@ -246,6 +246,14 @@ async function fetchAllObjectsWithFilter(walletAddress: string): Promise<SuiOwne
     });
   } while (cursor);
   
+  // Debug: Log all object types found
+  const allTypes = allObjects.map(obj => obj.type).filter(Boolean);
+  const uniqueTypes = [...new Set(allTypes)];
+  log('debug', 'All object types found', { 
+    totalTypes: uniqueTypes.length,
+    types: uniqueTypes.slice(0, 10) // Show first 10 types
+  });
+  
   // Filter for KioskOwnerCap objects
   const filteredObjects = allObjects.filter(obj => 
     obj.type?.includes('kiosk') && 
@@ -254,7 +262,8 @@ async function fetchAllObjectsWithFilter(walletAddress: string): Promise<SuiOwne
   
   log('info', 'Manual filtering completed', { 
     totalObjects: allObjects.length,
-    filteredObjects: filteredObjects.length 
+    filteredObjects: filteredObjects.length,
+    kioskTypes: uniqueTypes.filter(type => type?.toLowerCase().includes('kiosk'))
   });
   
   return { data: filteredObjects };

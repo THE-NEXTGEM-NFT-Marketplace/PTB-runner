@@ -80,6 +80,27 @@ export function KioskDashboard() {
         addDebugLog(`Direct API call failed: ${directError instanceof Error ? directError.message : String(directError)}`);
       }
       
+      // Debug: Check what types of objects you have
+      addDebugLog('Checking object types...');
+      try {
+        const typeTest = await suiClient.getOwnedObjects({
+          owner: account.address,
+          limit: 10,
+          options: { showContent: false, showType: true }
+        });
+        
+        const types = typeTest.data?.map(obj => obj.type).filter(Boolean) || [];
+        const uniqueTypes = [...new Set(types)];
+        addDebugLog(`Found ${uniqueTypes.length} unique object types: ${uniqueTypes.slice(0, 5).join(', ')}${uniqueTypes.length > 5 ? '...' : ''}`);
+        
+        // Check for kiosk-related types
+        const kioskTypes = uniqueTypes.filter(type => type?.toLowerCase().includes('kiosk'));
+        addDebugLog(`Kiosk-related types found: ${kioskTypes.length > 0 ? kioskTypes.join(', ') : 'None'}`);
+        
+      } catch (typeError) {
+        addDebugLog(`Type check failed: ${typeError instanceof Error ? typeError.message : String(typeError)}`);
+      }
+      
       addDebugLog('Fetching user kiosks...');
       const userKiosks = await getUserKiosks(account.address);
       addDebugLog(`Found ${userKiosks.length} kiosks`);
