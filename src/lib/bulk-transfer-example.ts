@@ -6,12 +6,19 @@ import {
   testSuiClient,
   BulkTransferResult 
 } from './kiosk-discovery';
+import { testSuiClientConnection } from './simple-sui-client';
 
 /**
  * Test SuiClient connection before attempting bulk transfer
  */
 export async function testConnection(walletAddress: string) {
   console.log('Testing SuiClient connection...');
+  
+  // Test the simple client directly
+  const simpleTest = await testSuiClientConnection(walletAddress);
+  console.log('Simple client test:', simpleTest);
+  
+  // Test through kiosk-discovery
   const testResult = await testSuiClient(walletAddress);
   
   if (testResult.isWorking) {

@@ -1,5 +1,5 @@
 // Sui Client Configuration and Utilities
-// Use a workaround for the package exports issue
+// Try direct import first, fallback to dynamic import if needed
 let SuiClient: any;
 let getFullnodeUrl: any;
 let clientLoadPromise: Promise<void> | null = null;
@@ -31,50 +31,73 @@ const fallbackSuiClient = class {
   }
 };
 
-// Initialize fallback values
-getFullnodeUrl = fallbackGetFullnodeUrl;
-SuiClient = fallbackSuiClient;
-
-// Load the actual Sui client modules
-async function loadSuiClient(): Promise<void> {
-  if (isClientLoaded) {
-    return;
-  }
-
-  try {
-    if (typeof window !== 'undefined') {
-      // Browser environment - use dynamic import
-      const clientModule = await import('@mysten/sui/client');
-      SuiClient = clientModule.SuiClient;
-      getFullnodeUrl = clientModule.getFullnodeUrl;
-    } else {
-      // Node.js environment - use require
-      // eslint-disable-next-line @typescript-eslint/no-var-requires
-      const clientModule = require('@mysten/sui/client');
-      SuiClient = clientModule.SuiClient;
-      getFullnodeUrl = clientModule.getFullnodeUrl;
+// Try direct import first
+try {
+  // eslint-disable-next-line @typescript-eslint/no-var-requires
+  const clientModule = require('@mysten/sui/client');
+  SuiClient = clientModule.SuiClient;
+  getFullnodeUrl = clientModule.getFullnodeUrl;
+  isClientLoaded = true;
+  console.log('SuiClient loaded via direct import');
+} catch (directImportError) {
+  console.log('Direct import failed, trying dynamic import:', directImportError);
+  
+  // Initialize fallback values
+  getFullnodeUrl = fallbackGetFullnodeUrl;
+  SuiClient = fallbackSuiClient;
+  
+  // Load the actual Sui client modules via dynamic import
+  async function loadSuiClient(): Promise<void> {
+    if (isClientLoaded) {
+      return;
     }
-    
-    isClientLoaded = true;
-    console.log('SuiClient loaded successfully');
-  } catch (error) {
-    console.warn('Failed to load @mysten/sui/client:', error);
-    // Keep using fallback implementations
-  }
-}
 
-// Start loading immediately
-if (typeof window !== 'undefined') {
-  clientLoadPromise = loadSuiClient();
-} else {
-  // In Node.js, load synchronously
-  loadSuiClient().catch(console.warn);
+    try {
+      console.log('Attempting dynamic import of @mysten/sui/client...');
+      
+      if (typeof window !== 'undefined') {
+        // Browser environment - use dynamic import
+        const clientModule = await import('@mysten/sui/client');
+        console.log('Dynamic import successful, clientModule:', clientModule);
+        SuiClient = clientModule.SuiClient;
+        getFullnodeUrl = clientModule.getFullnodeUrl;
+      } else {
+        // Node.js environment - use require
+        // eslint-disable-next-line @typescript-eslint/no-var-requires
+        const clientModule = require('@mysten/sui/client');
+        SuiClient = clientModule.SuiClient;
+        getFullnodeUrl = clientModule.getFullnodeUrl;
+      }
+      
+      isClientLoaded = true;
+      console.log('SuiClient loaded successfully via dynamic import');
+    } catch (error) {
+      console.warn('Failed to load @mysten/sui/client via dynamic import:', error);
+      console.log('Available modules:', typeof window !== 'undefined' ? 'browser' : 'node');
+      // Keep using fallback implementations
+    }
+  }
+
+  // Start loading immediately
+  if (typeof window !== 'undefined') {
+    clientLoadPromise = loadSuiClient();
+  } else {
+    // In Node.js, load synchronously
+    loadSuiClient().catch(console.warn);
+  }
 }
 
 // Export function to ensure client is loaded
 export async function ensureSuiClientLoaded(): Promise<void> {
   if (clientLoadPromise) {
+    console.log('Waiting for SuiClient to load...');
     await clientLoadPromise;
+    console.log('SuiClient loading completed');
+  }
+  
+  if (!isClientLoaded) {
+    console.warn('SuiClient is still not loaded after waiting');
+    throw new Error('SuiClient failed to load properly');
   }
 }
 
