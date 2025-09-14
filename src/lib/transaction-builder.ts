@@ -1,37 +1,5 @@
 // Transaction Block Builder - Converts parsed commands to Sui TransactionBlock
-
-// Use a workaround for the package exports issue
-let Transaction: any;
-
-// Try to load the Transaction class with error handling
-if (typeof window !== 'undefined') {
-  // Browser environment - use dynamic import
-  (async () => {
-    try {
-      const txModule = await import('@mysten/sui/transactions');
-      Transaction = txModule.Transaction;
-    } catch (error) {
-      console.warn('Failed to load @mysten/sui/transactions:', error);
-    }
-  })();
-} else {
-  // Node.js environment - use require
-  try {
-    const txModule = require('@mysten/sui/transactions');
-    Transaction = txModule.Transaction;
-  } catch (error) {
-    console.warn('Failed to load @mysten/sui/transactions:', error);
-  }
-}
-
-// Fallback implementation
-if (!Transaction) {
-  Transaction = class {
-    constructor() {
-      throw new Error('Transaction class not properly loaded - please refresh the page');
-    }
-  };
-}
+import { Transaction } from "@mysten/sui/transactions";
 import { type PtbCommand, type PtbArgument } from "./ptb-parser";
 
 export function constructTransactionBlock(commands: PtbCommand[]): Transaction {
@@ -98,8 +66,9 @@ function executeTransferObjects(
   }
   
   const objects = command.objects.map(obj => resolveArgument(txb, obj, resultMap));
+  const recipientArg = txb.pure.address(command.recipient);
   
-  txb.transferObjects(objects, command.recipient);
+  txb.transferObjects(objects, recipientArg);
 }
 
 function executeSplitCoins(
@@ -141,6 +110,10 @@ function resolveArgument(
     case 'pure':
       // Handle different value types for pure arguments
       if (typeof arg.value === 'string') {
+        // Auto-detect Sui address-like strings and encode as address
+        if (isLikelySuiAddress(arg.value)) {
+          return txb.pure.address(arg.value);
+        }
         return txb.pure.string(arg.value);
       } else if (typeof arg.value === 'number') {
         return txb.pure.u64(arg.value);
@@ -170,4 +143,13 @@ function resolveArgument(
     default:
       throw new Error(`Unsupported argument type: ${(arg as any).type}`);
   }
+}
+
+function isLikelySuiAddress(value: string): boolean {
+  // Heuristic: hex string starting with 0x and at least 40 hex chars total length
+  if (typeof value !== 'string') return false;
+  if (!value.startsWith('0x')) return false;
+  const hex = value.slice(2);
+  if (hex.length < 40) return false;
+  return /^[0-9a-fA-F]+$/.test(hex);
 }

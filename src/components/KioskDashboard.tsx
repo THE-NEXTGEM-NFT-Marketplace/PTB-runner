@@ -6,7 +6,8 @@ import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Wallet, Package, ArrowRightLeft, Plus, RefreshCw } from 'lucide-react';
+import { Wallet, Package, ArrowRightLeft, Plus, RefreshCw, FileText } from 'lucide-react';
+import { Link } from 'react-router-dom';
 import {
   KioskInfo,
   NFTInfo,
@@ -144,6 +145,12 @@ export function KioskDashboard() {
           </div>
           <div className="flex items-center gap-4">
             <NetworkSwitcher />
+            <Link to="/ptb" className="hidden sm:block">
+              <Button variant="outline" size="sm" className="gap-2">
+                <FileText className="w-4 h-4" />
+                PTB Runner
+              </Button>
+            </Link>
             <Button
               variant="outline"
               size="sm"

@@ -1,36 +1,4 @@
 import { useState } from "react";
-// Use a workaround for the package exports issue
-let Transaction: any;
-
-// Try to load the Transaction class with error handling
-if (typeof window !== 'undefined') {
-  // Browser environment - use dynamic import
-  (async () => {
-    try {
-      const txModule = await import('@mysten/sui/transactions');
-      Transaction = txModule.Transaction;
-    } catch (error) {
-      console.warn('Failed to load @mysten/sui/transactions:', error);
-    }
-  })();
-} else {
-  // Node.js environment - use require
-  try {
-    const txModule = require('@mysten/sui/transactions');
-    Transaction = txModule.Transaction;
-  } catch (error) {
-    console.warn('Failed to load @mysten/sui/transactions:', error);
-  }
-}
-
-// Fallback implementation
-if (!Transaction) {
-  Transaction = class {
-    constructor() {
-      throw new Error('Transaction class not properly loaded - please refresh the page');
-    }
-  };
-}
 import { useWallet } from "@suiet/wallet-kit";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
