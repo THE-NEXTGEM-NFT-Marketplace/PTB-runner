@@ -131,9 +131,26 @@ export function KioskDashboard() {
       }
       
       addDebugLog('Fetching user kiosks...');
-      const userKiosks = await getUserKiosks(account.address);
-      addDebugLog(`Found ${userKiosks.length} kiosks`);
-      setKiosks(userKiosks);
+      try {
+        // Test direct API call to see what we get
+        addDebugLog('Testing direct kiosk API call...');
+        const directKioskTest = await suiClient.getOwnedObjects({
+          owner: account.address,
+          filter: {
+            StructType: '0x2::kiosk::KioskOwnerCap'
+          },
+          options: { showContent: true, showType: true }
+        });
+        addDebugLog(`Direct kiosk API found ${directKioskTest.data?.length || 0} KioskOwnerCap objects`);
+        
+        const userKiosks = await getUserKiosks(account.address);
+        addDebugLog(`Found ${userKiosks.length} kiosks`);
+        setKiosks(userKiosks);
+      } catch (kioskError) {
+        addDebugLog(`Kiosk discovery failed: ${kioskError instanceof Error ? kioskError.message : String(kioskError)}`);
+        console.error('Kiosk discovery error:', kioskError);
+        setKiosks([]);
+      }
       
       addDebugLog('Fetching user NFTs with enhanced discovery...');
       const userNFTs = await getAllUserNFTsEnhanced(account.address);
