@@ -268,7 +268,11 @@ async function fetchAllObjectsWithFilter(walletAddress: string): Promise<SuiOwne
     totalObjects: allObjects.length,
     filteredObjects: filteredObjects.length,
     kioskTypes: uniqueTypes.filter(type => type?.toLowerCase().includes('kiosk')),
-    allTypes: uniqueTypes // Show all types for debugging
+    allTypes: uniqueTypes, // Show all types for debugging
+    sampleFilteredObjects: filteredObjects.slice(0, 3).map(obj => ({
+      objectId: obj.objectId,
+      type: obj.data?.type || obj.type
+    }))
   });
   
   return { data: filteredObjects };
@@ -301,9 +305,12 @@ async function processKioskOwnerCaps(ownedObjects: SuiOwnedObjectsResponse): Pro
  * Processes a single KioskOwnerCap object
  */
 async function processKioskOwnerCap(obj: SuiObjectData): Promise<KioskInfo | null> {
+  const objType = obj.data?.type || obj.type;
   log('debug', 'Processing kiosk owner cap', { 
     objectId: obj.objectId, 
-    type: obj.type 
+    type: objType,
+    hasContent: !!obj.content,
+    hasFields: !!obj.content?.fields
   });
   
   if (!obj.content?.fields) {
