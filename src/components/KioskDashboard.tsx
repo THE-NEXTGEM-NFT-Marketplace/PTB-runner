@@ -148,9 +148,38 @@ export function KioskDashboard() {
           addDebugLog(`First KioskOwnerCap structure: ${JSON.stringify(directKioskTest.data[0], null, 2)}`);
         }
         
+        // Test: Process KioskOwnerCap objects directly
+        addDebugLog('Processing KioskOwnerCap objects directly...');
+        const kioskObjects = directKioskTest.data || [];
+        addDebugLog(`Processing ${kioskObjects.length} KioskOwnerCap objects`);
+        
+        const processedKiosks = [];
+        for (let i = 0; i < kioskObjects.length; i++) {
+          const obj = kioskObjects[i];
+          addDebugLog(`Processing object ${i}: ${obj.objectId}`);
+          
+          // Extract kiosk ID from the 'for' field
+          const kioskId = obj.content?.fields?.for;
+          if (kioskId) {
+            addDebugLog(`Found kiosk ID: ${kioskId}`);
+            processedKiosks.push({
+              id: kioskId,
+              ownerCapId: obj.objectId,
+              itemCount: 0 // We'll get this later
+            });
+          } else {
+            addDebugLog(`No kiosk ID found in object ${i}`);
+          }
+        }
+        
+        addDebugLog(`Processed ${processedKiosks.length} kiosks`);
+        console.log('Processed kiosks:', processedKiosks);
+        setKiosks(processedKiosks);
+        
+        // Also try the original function
         const userKiosks = await getUserKiosks(account.address);
-        addDebugLog(`Found ${userKiosks.length} kiosks`);
-        setKiosks(userKiosks);
+        addDebugLog(`Original function found ${userKiosks.length} kiosks`);
+        console.log('Original kiosk discovery result:', userKiosks);
       } catch (kioskError) {
         addDebugLog(`Kiosk discovery failed: ${kioskError instanceof Error ? kioskError.message : String(kioskError)}`);
         console.error('Kiosk discovery error:', kioskError);

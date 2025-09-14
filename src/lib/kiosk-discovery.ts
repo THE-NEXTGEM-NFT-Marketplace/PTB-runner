@@ -337,12 +337,19 @@ async function processKioskOwnerCap(obj: SuiObjectData): Promise<KioskInfo | nul
   }
   
   const fields = obj.content.fields;
+  log('debug', 'KioskOwnerCap fields', { 
+    objectId: obj.objectId,
+    fields: fields,
+    availableFields: Object.keys(fields)
+  });
+  
   const kioskId = extractKioskId(fields);
   
   if (!kioskId) {
     log('warn', 'No kiosk ID found in fields', { 
       objectId: obj.objectId,
-      availableFields: Object.keys(fields)
+      availableFields: Object.keys(fields),
+      fields: fields
     });
     return null;
   }
@@ -385,13 +392,21 @@ async function processKioskOwnerCap(obj: SuiObjectData): Promise<KioskInfo | nul
 function extractKioskId(fields: Record<string, unknown>): string | null {
   const possibleFields = ['for', 'kiosk_id', 'kioskId', 'kiosk', 'id'];
   
+  log('debug', 'Extracting kiosk ID', { 
+    availableFields: Object.keys(fields),
+    possibleFields: possibleFields
+  });
+  
   for (const fieldName of possibleFields) {
     const value = fields[fieldName];
+    log('debug', `Checking field ${fieldName}`, { value, type: typeof value });
     if (typeof value === 'string' && value.length > 0) {
+      log('debug', `Found kiosk ID in field ${fieldName}`, { kioskId: value });
       return value;
     }
   }
   
+  log('warn', 'No kiosk ID found in any field');
   return null;
 }
 
