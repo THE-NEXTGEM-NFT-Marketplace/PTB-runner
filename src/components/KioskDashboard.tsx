@@ -7,7 +7,14 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Wallet, Package, ArrowRightLeft, Plus, RefreshCw } from 'lucide-react';
-import { KioskInfo, NFTInfo, getUserKiosks, getAllUserNFTs, getAllUserNFTsEnhanced } from '@/lib/kiosk-discovery';
+import {
+  KioskInfo,
+  NFTInfo,
+  getUserKiosks,
+  getAllUserNFTs,
+  getAllUserNFTsEnhanced,
+  discoverUserKiosksAndNFTs,
+} from '@/lib/kiosk-discovery';
 import { WalletConnection } from './WalletConnection';
 import { NFTGrid } from './NFTGrid';
 import { TransferInterface } from './TransferInterface';
@@ -66,14 +73,10 @@ export function KioskDashboard() {
         addDebugLog(`Direct API call failed: ${directError instanceof Error ? directError.message : String(directError)}`);
       }
       
-      addDebugLog('Fetching user kiosks...');
-      const userKiosks = await getUserKiosks(account.address);
-      addDebugLog(`Found ${userKiosks.length} kiosks`);
+      addDebugLog('Fetching user kiosks and NFTs...');
+      const { kiosks: userKiosks, nfts: userNFTs } = await discoverUserKiosksAndNFTs(account.address);
+      addDebugLog(`Found ${userKiosks.length} kiosks and ${userNFTs.length} NFTs`);
       setKiosks(userKiosks);
-      
-      addDebugLog('Fetching user NFTs with enhanced discovery...');
-      const userNFTs = await getAllUserNFTsEnhanced(account.address);
-      addDebugLog(`Found ${userNFTs.length} NFTs (enhanced discovery)`);
       setNFTs(userNFTs);
       
       if (userKiosks.length === 0) {

@@ -523,558 +523,196 @@ async function fetchKioskDynamicFields(kioskId: string): Promise<SuiDynamicField
 }
 
 /**
- * Processes dynamic fields to extract NFT information
+ * Batches fetching of multiple objects to improve performance.
+ * @param objectIds - Array of object IDs to fetch.
+ * @returns Promise resolving to an array of SuiObjectData.
+ */
+async function batchFetchObjects(objectIds: string[]): Promise<SuiObjectData[]> {
+  if (objectIds.length === 0) {
+    return [];
+  }
+
+  log('debug', 'Batch fetching objects', { count: objectIds.length });
+
+  try {
+    const objects = await withRetry(async () => {
+      return await suiClient.multiGetObjects({
+        ids: objectIds,
+        options: {
+          showContent: true,
+          showType: true,
+          showDisplay: true,
+        },
+      });
+    });
+
+    // Filter out potential errors and return valid data
+    return objects
+      .filter(obj => obj.data)
+      .map(obj => obj.data as SuiObjectData);
+  } catch (error) {
+    log('error', 'Failed to batch fetch objects', { 
+      error: error instanceof Error ? error.message : String(error)
+    });
+    return []; // Return empty array on failure to avoid crashing the whole process
+  }
+}
+
+
+/**
+ * Processes dynamic fields to extract NFT information using batching.
  */
 async function processDynamicFields(
   dynamicFields: SuiDynamicFieldsResponse, 
   kioskId: string
 ): Promise<NFTInfo[]> {
-  const nfts: NFTInfo[] = [];
-  
-  // Process fields in batches to avoid overwhelming the API
-  const batchSize = 10;
-  for (let i = 0; i < dynamicFields.data.length; i += batchSize) {
-    const batch = dynamicFields.data.slice(i, i + batchSize);
-    
-    const batchPromises = batch.map(field => 
-      processDynamicField(field, kioskId).catch(error => {
-        log('warn', 'Failed to process dynamic field', {
-          kioskId,
-          fieldId: field.objectId,
-          error: error instanceof Error ? error.message : String(error)
-        });
-        return null;
-      })
-    );
-    
-    const batchResults = await Promise.all(batchPromises);
-    const validNFTs = batchResults.filter((nft): nft is NFTInfo => nft !== null);
-    nfts.push(...validNFTs);
-    
-    // Rate limiting between batches
-    if (i + batchSize < dynamicFields.data.length) {
-      await delay(CONFIG.RATE_LIMIT_DELAY);
+  const itemIdsToFetch: string[] = [];
+  const potentialNFTs: NFTInfo[] = [];
+
+  for (const field of dynamicFields.data) {
+     // A common pattern is that the dynamic field's name is the object ID of the NFT
+    if (isValidObjectId(field.name)) {
+        itemIdsToFetch.push(field.name);
     }
   }
-  
-  return nfts;
-}
 
-/**
- * Processes a single dynamic field to extract NFT information
- */
-async function processDynamicField(
-  field: SuiDynamicField, 
-  kioskId: string
-): Promise<NFTInfo | null> {
-  log('debug', 'Processing dynamic field', { 
-    kioskId,
-    fieldId: field.objectId, 
-    fieldName: field.name 
-  });
-  
-  try {
-    const fieldObject = await withRetry(async () => {
-      return await suiClient.getObject({
-        id: field.objectId,
-        options: {
-          showContent: true,
-          showType: true,
-          showDisplay: true,
-        }
-      }) as SuiObjectResponse;
-    });
-    
-    if (!fieldObject.data) {
-      log('warn', 'Dynamic field object not found', { 
-        kioskId,
-        fieldId: field.objectId 
-      });
-      return null;
-    }
-    
-    return await extractNFTFromFieldObject(fieldObject.data, kioskId);
-  } catch (error) {
-    log('warn', 'Failed to process dynamic field', {
-      kioskId,
-      fieldId: field.objectId,
-      error: error instanceof Error ? error.message : String(error)
-    });
-    return null;
-  }
-}
-
-/**
- * Extracts NFT information from a field object
- */
-async function extractNFTFromFieldObject(
-  fieldObject: SuiObjectData, 
-  kioskId: string
-): Promise<NFTInfo | null> {
-  // Handle the actual API response structure
-  const actualObj = fieldObject.data || fieldObject;
-  const content = actualObj.content;
-  
-  if (!content?.fields) {
-    console.warn('Field object has no content or fields:', { 
-      kioskId,
-      fieldId: fieldObject.objectId 
-    });
-    return null;
-  }
-  
-  const fields = content.fields;
-  
-  // Strategy 1: Check if this is a kiosk item wrapper with a value field
-  const wrapperValue = extractWrapperValue(fields);
-  if (wrapperValue) {
-    return await fetchNFTFromId(wrapperValue, kioskId);
-  }
-  
-  // Strategy 2: Check if this dynamic field object is itself an NFT
-  if (isNFTObject(fieldObject)) {
-    return {
-      id: fieldObject.objectId,
-      type: fieldObject.type || 'unknown',
-      display: fieldObject.display?.data,
-      kioskId
-    };
-  }
-  
-  // Strategy 3: Try other common field names
-  const itemId = extractItemId(fields);
-  if (itemId) {
-    return await fetchNFTFromId(itemId, kioskId);
-  }
-  
-  log('debug', 'No recognizable NFT reference found', { 
-    kioskId,
-    fieldId: fieldObject.objectId,
-    availableFields: Object.keys(fields)
-  });
-  
-  return null;
-}
-
-/**
- * Extracts wrapper value from fields
- */
-function extractWrapperValue(fields: Record<string, unknown>): string | null {
-  const value = fields.value;
-  if (typeof value === 'string' && value.length > 0) {
-    return value;
-  }
-  return null;
-}
-
-/**
- * Checks if an object appears to be an NFT
- */
-function isNFTObject(obj: SuiObjectData): boolean {
-  if (!obj.type) return false;
-  
-  const hasNFTType = obj.type.includes('nft') || 
-                    obj.type.includes('NFT') ||
-                    obj.type.includes('collectible');
-  
-  const hasDisplayData = Boolean(obj.display?.data && (
-    obj.display.data.name || 
-    obj.display.data.image_url
-  ));
-  
-  return hasNFTType || hasDisplayData;
-}
-
-/**
- * Extracts item ID from fields using common field names
- */
-function extractItemId(fields: Record<string, unknown>): string | null {
-  const possibleFields = ['item_id', 'itemId', 'id', 'item'];
-  
-  for (const fieldName of possibleFields) {
-    const value = fields[fieldName];
-    if (typeof value === 'string' && value.length > 0) {
-      return value;
-    }
-  }
-  
-  return null;
-}
-
-/**
- * Fetches NFT information from an object ID
- */
-async function fetchNFTFromId(nftId: string, kioskId: string): Promise<NFTInfo | null> {
-  if (!isValidObjectId(nftId)) {
-    log('warn', 'Invalid NFT ID format', { kioskId, nftId });
-    return null;
-  }
-  
-  try {
-    const nftObject = await withRetry(async () => {
-      return await suiClient.getObject({
-        id: nftId,
-        options: {
-          showContent: true,
-          showType: true,
-          showDisplay: true,
-        }
-      }) as SuiObjectResponse;
-    });
-    
-    if (!nftObject.data || !nftObject.data.type) {
-      log('warn', 'NFT object not found or has no type', { kioskId, nftId });
-      return null;
-    }
-    
-    log('debug', 'Successfully fetched NFT', { 
-      kioskId, 
-      nftId, 
-      type: nftObject.data.type 
-    });
-    
-    return {
-      id: nftId,
-      type: nftObject.data.type,
-      display: nftObject.data.display?.data,
-      kioskId
-    };
-  } catch (error) {
-    log('warn', 'Failed to fetch NFT', {
-      kioskId,
-      nftId,
-      error: error instanceof Error ? error.message : String(error)
-    });
-    return null;
-  }
-}
-
-/**
- * Gets all NFTs from all user's kiosks with proper rate limiting
- * @param walletAddress - The wallet address to fetch NFTs for
- * @returns Promise resolving to array of NFTInfo objects
- * @throws ValidationError if wallet address is invalid
- * @throws KioskDiscoveryError if NFT fetching fails
- */
-export async function getAllUserNFTs(walletAddress: string): Promise<NFTInfo[]> {
-  // Input validation
-  if (!isValidWalletAddress(walletAddress)) {
-    throw new ValidationError('Invalid wallet address format', 'walletAddress');
+  if (itemIdsToFetch.length === 0) {
+    return [];
   }
 
-  log('info', 'Fetching all user NFTs', { walletAddress });
-  
-  try {
-    const kiosks = await getUserKiosks(walletAddress);
-    const allNFTs: NFTInfo[] = [];
-    
-    // Process kiosks with rate limiting
-    for (let i = 0; i < kiosks.length; i++) {
-      const kiosk = kiosks[i];
-      
-      try {
-        const nfts = await getKioskNFTs(kiosk.id);
-        allNFTs.push(...nfts);
-        
-        log('debug', 'Fetched NFTs from kiosk', { 
-          walletAddress,
-          kioskId: kiosk.id,
-          nftsFound: nfts.length 
-        });
-      } catch (error) {
-        log('warn', 'Failed to fetch NFTs from kiosk', {
-          walletAddress,
-          kioskId: kiosk.id,
-          error: error instanceof Error ? error.message : String(error)
-        });
-        // Continue with other kiosks
-      }
-      
-      // Rate limiting between kiosks
-      if (i < kiosks.length - 1) {
-        await delay(CONFIG.RATE_LIMIT_DELAY);
-      }
-    }
-    
-    log('info', 'All user NFTs fetched', { 
-      walletAddress,
-      totalNFTs: allNFTs.length 
-    });
-    
-    return allNFTs;
-  } catch (error) {
-    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-    log('error', 'Failed to fetch all user NFTs', { walletAddress, error: errorMessage });
-    throw new KioskDiscoveryError(
-      `Failed to fetch all user NFTs: ${errorMessage}`,
-      'ALL_NFTS_FETCH_FAILED',
-      { walletAddress }
-    );
-  }
-}
+  const fetchedObjects = await batchFetchObjects(itemIdsToFetch);
 
-/**
- * Gets unique NFT types from user's collection
- * @param walletAddress - The wallet address to get NFT types for
- * @returns Promise resolving to array of unique NFT type strings
- * @throws ValidationError if wallet address is invalid
- * @throws KioskDiscoveryError if NFT type fetching fails
- */
-export async function getUserNFTTypes(walletAddress: string): Promise<string[]> {
-  // Input validation
-  if (!isValidWalletAddress(walletAddress)) {
-    throw new ValidationError('Invalid wallet address format', 'walletAddress');
-  }
-
-  log('info', 'Fetching user NFT types', { walletAddress });
-  
-  try {
-    const nfts = await getAllUserNFTs(walletAddress);
-    const types = new Set(nfts.map(nft => nft.type));
-    const uniqueTypes = Array.from(types);
-    
-    log('info', 'User NFT types fetched', { 
-      walletAddress,
-      uniqueTypes: uniqueTypes.length 
-    });
-    
-    return uniqueTypes;
-  } catch (error) {
-    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-    log('error', 'Failed to fetch user NFT types', { walletAddress, error: errorMessage });
-    throw new KioskDiscoveryError(
-      `Failed to fetch user NFT types: ${errorMessage}`,
-      'NFT_TYPES_FETCH_FAILED',
-      { walletAddress }
-    );
-  }
-}
-
-/**
- * Checks if user has a kiosk
- * @param walletAddress - The wallet address to check
- * @returns Promise resolving to boolean indicating if user has kiosks
- * @throws ValidationError if wallet address is invalid
- * @throws KioskDiscoveryError if kiosk check fails
- */
-export async function hasKiosk(walletAddress: string): Promise<boolean> {
-  // Input validation
-  if (!isValidWalletAddress(walletAddress)) {
-    throw new ValidationError('Invalid wallet address format', 'walletAddress');
-  }
-
-  log('info', 'Checking if user has kiosk', { walletAddress });
-  
-  try {
-    const kiosks = await getUserKiosks(walletAddress);
-    const hasKiosks = kiosks.length > 0;
-    
-    log('info', 'Kiosk check completed', { 
-      walletAddress,
-      hasKiosks 
-    });
-    
-    return hasKiosks;
-  } catch (error) {
-    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-    log('error', 'Failed to check if user has kiosk', { walletAddress, error: errorMessage });
-    throw new KioskDiscoveryError(
-      `Failed to check if user has kiosk: ${errorMessage}`,
-      'KIOSK_CHECK_FAILED',
-      { walletAddress }
-    );
-  }
-}
-
-/**
- * Alternative method: Find NFTs by searching all owned objects directly
- * @param walletAddress - The wallet address to search for NFTs
- * @returns Promise resolving to array of NFTInfo objects
- * @throws ValidationError if wallet address is invalid
- * @throws KioskDiscoveryError if direct NFT search fails
- */
-export async function findNFTsDirectly(walletAddress: string): Promise<NFTInfo[]> {
-  // Input validation
-  if (!isValidWalletAddress(walletAddress)) {
-    throw new ValidationError('Invalid wallet address format', 'walletAddress');
-  }
-
-  log('info', 'Searching for NFTs directly owned', { walletAddress });
-  
-  try {
-    const allObjects = await fetchAllOwnedObjects(walletAddress);
-    const nfts = filterNFTsFromObjects(allObjects);
-    
-    log('info', 'Direct NFT search completed', { 
-      walletAddress,
-      nftsFound: nfts.length 
-    });
-    
-    return nfts;
-  } catch (error) {
-    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-    log('error', 'Failed to find NFTs directly', { walletAddress, error: errorMessage });
-    throw new KioskDiscoveryError(
-      `Failed to find NFTs directly: ${errorMessage}`,
-      'DIRECT_NFT_SEARCH_FAILED',
-      { walletAddress }
-    );
-  }
-}
-
-/**
- * Fetches all owned objects for a wallet with pagination and rate limiting
- */
-async function fetchAllOwnedObjects(walletAddress: string): Promise<SuiObjectData[]> {
-  const allObjects: SuiObjectData[] = [];
-  let cursor: string | null = null;
-  let paginationCount = 0;
-  
-  do {
-    if (paginationCount >= CONFIG.MAX_PAGINATION_LIMIT) {
-      log('warn', 'Owned objects pagination limit reached', { 
-        walletAddress, 
-        limit: CONFIG.MAX_PAGINATION_LIMIT 
-      });
-      break;
-    }
-    
-    const batch = await withRetry(async () => {
-      return await suiClient.getOwnedObjects({
-        owner: walletAddress,
-        cursor: cursor || undefined,
-        options: {
-          showContent: true,
-          showType: true,
-          showDisplay: true,
-        }
-      }) as SuiOwnedObjectsResponse;
-    });
-    
-    allObjects.push(...batch.data);
-    cursor = batch.nextCursor;
-    paginationCount++;
-    
-    // Rate limiting
-    if (cursor) {
-      await delay(CONFIG.RATE_LIMIT_DELAY);
-    }
-    
-    log('debug', 'Fetched batch of owned objects', { 
-      walletAddress,
-      batchSize: batch.data.length, 
-      totalSoFar: allObjects.length 
-    });
-  } while (cursor);
-  
-  log('info', 'All owned objects fetched', { 
-    walletAddress,
-    totalObjects: allObjects.length 
-  });
-  
-  return allObjects;
-}
-
-/**
- * Filters NFTs from owned objects
- */
-function filterNFTsFromObjects(objects: SuiObjectData[]): NFTInfo[] {
-  const nfts: NFTInfo[] = [];
-  
-  for (const obj of objects) {
+  for (const obj of fetchedObjects) {
     if (isNFTObject(obj)) {
-      log('debug', 'Found potential NFT', { 
-        objectId: obj.objectId, 
-        type: obj.type 
-      });
-      
-      nfts.push({
-        id: obj.objectId,
-        type: obj.type || 'unknown',
-        display: obj.display?.data,
-        kioskId: 'direct_ownership' // Mark as directly owned
-      });
-    }
-  }
-  
-  return nfts;
-}
-
-/**
- * Enhanced function that combines both kiosk and direct ownership methods
- * by fetching all objects once and processing them.
- * @param walletAddress - The wallet address to search for NFTs
- * @returns Promise resolving to array of unique NFTInfo objects
- * @throws ValidationError if wallet address is invalid
- * @throws KioskDiscoveryError if enhanced NFT search fails
- */
-export async function getAllUserNFTsEnhanced(walletAddress: string): Promise<NFTInfo[]> {
-  // Input validation
-  if (!isValidWalletAddress(walletAddress)) {
-    throw new ValidationError('Invalid wallet address format', 'walletAddress');
-  }
-
-  log('info', 'Enhanced NFT discovery started', { walletAddress });
-
-  try {
-    const allObjects = await fetchAllOwnedObjects(walletAddress);
-    
-    const kioskCaps = allObjects.filter(obj => (obj.data?.type || obj.type || '').includes(CONFIG.KIOSK_OWNER_CAP_TYPE));
-    
-    const kioskPromises = kioskCaps.map(cap => processKioskOwnerCap(cap));
-    const kioskResults = await Promise.all(kioskPromises);
-    const kiosks = kioskResults.filter((k): k is KioskInfo => k !== null);
-
-    const kioskIds = new Set(kiosks.map(k => k.id));
-    const allNFTs: NFTInfo[] = [];
-    const foundNFTIds = new Set<string>();
-
-    // Process all objects to find NFTs
-    for (const obj of allObjects) {
-      if (isNFTObject(obj)) {
-        // This is a directly owned NFT.
-        // We need to determine if it's inside a kiosk we've already identified.
-        // A more robust way would be to check its parent, but for now, we assume direct ownership if not inside a known kiosk item.
-        // This part of logic is complex; for now, we focus on direct ownership and kiosk items.
-        if (!foundNFTIds.has(obj.objectId)) {
-           allNFTs.push({
+        potentialNFTs.push({
             id: obj.objectId,
             type: obj.type || 'unknown',
             display: obj.display?.data,
-            kioskId: 'direct_ownership' // Mark as directly owned
+            kioskId,
+        });
+    }
+  }
+  
+  return potentialNFTs;
+}
+
+/**
+ * Enhanced function that discovers all kiosks and NFTs in an optimized manner.
+ * It fetches all user's objects once, identifies kiosks, then fetches all kiosk contents in batches.
+ * @param walletAddress - The wallet address to search for kiosks and NFTs.
+ * @returns A promise that resolves to an object containing lists of KioskInfo and NFTInfo.
+ */
+export async function discoverUserKiosksAndNFTs(walletAddress: string): Promise<{kiosks: KioskInfo[], nfts: NFTInfo[]}> {
+  if (!isValidWalletAddress(walletAddress)) {
+    throw new ValidationError('Invalid wallet address format', 'walletAddress');
+  }
+
+  log('info', 'Starting optimized kiosk and NFT discovery', { walletAddress });
+
+  try {
+    const allOwnedObjects = await fetchAllOwnedObjects(walletAddress);
+
+    // 1. Discover all kiosks from KioskOwnerCaps
+    const kioskCaps = allOwnedObjects.filter(obj => 
+      (obj.data?.type || obj.type || '').includes(CONFIG.KIOSK_OWNER_CAP_TYPE)
+    );
+
+    const kioskPromises = kioskCaps.map(cap => processKioskOwnerCap(cap));
+    const kioskResults = await Promise.all(kioskPromises);
+    const kiosks = kioskResults.filter((k): k is KioskInfo => k !== null);
+    log('info', 'Kiosk discovery complete', { count: kiosks.length });
+
+    const allNFTs: NFTInfo[] = [];
+    const processedNftIds = new Set<string>();
+
+    // 2. Discover NFTs directly owned by the user
+    for (const obj of allOwnedObjects) {
+      if (isNFTObject(obj)) {
+        if (!processedNftIds.has(obj.objectId)) {
+          allNFTs.push({
+            id: obj.objectId,
+            type: obj.type || 'unknown',
+            display: obj.display?.data,
+            kioskId: 'direct_ownership',
           });
-          foundNFTIds.add(obj.objectId);
+          processedNftIds.add(obj.objectId);
+        }
+      }
+    }
+    log('info', 'Directly owned NFT discovery complete', { count: allNFTs.length });
+
+    // 3. Discover NFTs within all kiosks using batching
+    if (kiosks.length > 0) {
+      const allKioskFieldsPromises = kiosks.map(kiosk => fetchKioskDynamicFields(kiosk.id));
+      const allKioskFieldsResults = await Promise.all(allKioskFieldsPromises);
+      
+      const allNftIdsInKiosks = new Set<string>();
+      
+      for(const dynamicFields of allKioskFieldsResults) {
+          for (const field of dynamicFields.data) {
+              // The convention is often that the dynamic field's 'name' is the ID of the object.
+              if (isValidObjectId(field.name) && !processedNftIds.has(field.name)) {
+                  allNftIdsInKiosks.add(field.name);
+              }
+          }
+      }
+
+      const nftObjects = await batchFetchObjects(Array.from(allNftIdsInKiosks));
+      
+      // We need to map these back to their kiosk IDs. This is tricky without more info.
+      // For now, let's re-fetch dynamic fields and process them with the fetched objects.
+      // This is still more efficient than N getObject calls.
+      const kioskIdByNftId = new Map<string, string>();
+      for (let i = 0; i < kiosks.length; i++) {
+        const kiosk = kiosks[i];
+        const fields = allKioskFieldsResults[i];
+        for (const field of fields.data) {
+          if (isValidObjectId(field.name)) {
+            kioskIdByNftId.set(field.name, kiosk.id);
+          }
+        }
+      }
+      
+      for (const nftObj of nftObjects) {
+        if (isNFTObject(nftObj) && !processedNftIds.has(nftObj.objectId)) {
+           allNFTs.push({
+            id: nftObj.objectId,
+            type: nftObj.type || 'unknown',
+            display: nftObj.display?.data,
+            kioskId: kioskIdByNftId.get(nftObj.objectId) || 'unknown_kiosk',
+          });
+          processedNftIds.add(nftObj.objectId);
         }
       }
     }
 
-    const kioskNFTsPromises = kiosks.map(kiosk => getKioskNFTs(kiosk.id));
-    const kioskNFTsResults = await Promise.all(kioskNFTsPromises);
-    
-    for (const nftList of kioskNFTsResults) {
-      for (const nft of nftList) {
-        if (!foundNFTIds.has(nft.id)) {
-          allNFTs.push(nft);
-          foundNFTIds.add(nft.id);
-        }
-      }
-    }
+    log('info', 'Kiosk NFT discovery complete', { count: allNFTs.length - processedNftIds.size });
 
-    log('info', 'Enhanced NFT discovery completed', {
-      walletAddress,
-      totalUniqueNFTs: allNFTs.length
-    });
+    log('info', 'Total unique NFTs found', { count: allNFTs.length });
 
-    return allNFTs;
+    return { kiosks, nfts: allNFTs };
+
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-    log('error', 'Enhanced NFT discovery failed', { walletAddress, error: errorMessage });
+    log('error', 'Optimized discovery failed', { walletAddress, error: errorMessage });
     throw new KioskDiscoveryError(
-      `Enhanced NFT discovery failed: ${errorMessage}`,
-      'ENHANCED_NFT_DISCOVERY_FAILED',
+      `Optimized kiosk and NFT discovery failed: ${errorMessage}`,
+      'OPTIMIZED_DISCOVERY_FAILED',
       { walletAddress }
     );
   }
+}
+
+
+/**
+ * Legacy enhanced function, now replaced by discoverUserKiosksAndNFTs.
+ * Kept for backward compatibility but warns about deprecation.
+ * @deprecated
+ */
+export async function getAllUserNFTsEnhanced(walletAddress: string): Promise<NFTInfo[]> {
+  log('warn', '`getAllUserNFTsEnhanced` is deprecated. Use `discoverUserKiosksAndNFTs` instead.');
+  const { nfts } = await discoverUserKiosksAndNFTs(walletAddress);
+  return nfts;
 }
 
 // Bulk NFT Transfer System
@@ -1185,11 +823,11 @@ export async function getAvailableNFTTypes(walletAddress: string): Promise<NFTSe
   log('info', 'Getting available NFT types', { walletAddress });
   
   try {
-    const nfts = await getAllUserNFTsEnhanced(walletAddress);
+    const nfts = await discoverUserKiosksAndNFTs(walletAddress);
     
     // Group NFTs by type
     const nftGroups = new Map<string, NFTInfo[]>();
-    for (const nft of nfts) {
+    for (const nft of nfts.nfts) {
       if (!nftGroups.has(nft.type)) {
         nftGroups.set(nft.type, []);
       }
