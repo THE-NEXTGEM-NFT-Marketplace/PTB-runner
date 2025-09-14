@@ -143,6 +143,11 @@ export function KioskDashboard() {
         });
         addDebugLog(`Direct kiosk API found ${directKioskTest.data?.length || 0} KioskOwnerCap objects`);
         
+        // Debug: Check the structure of KioskOwnerCap objects
+        if (directKioskTest.data && directKioskTest.data.length > 0) {
+          addDebugLog(`First KioskOwnerCap structure: ${JSON.stringify(directKioskTest.data[0], null, 2)}`);
+        }
+        
         const userKiosks = await getUserKiosks(account.address);
         addDebugLog(`Found ${userKiosks.length} kiosks`);
         setKiosks(userKiosks);
