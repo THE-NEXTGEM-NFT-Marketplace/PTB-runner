@@ -248,8 +248,8 @@ async function fetchAllObjectsWithFilter(walletAddress: string): Promise<SuiOwne
   
   // Debug: Log all object types found
   const allTypes = allObjects.map(obj => {
-    // The type is directly on the object
-    return obj.type || 'unknown';
+    // The type is in obj.data.type based on the API response structure
+    return obj.data?.type || obj.type || 'unknown';
   }).filter(Boolean);
   const uniqueTypes = [...new Set(allTypes)];
   log('debug', 'All object types found', { 
@@ -259,7 +259,7 @@ async function fetchAllObjectsWithFilter(walletAddress: string): Promise<SuiOwne
   
   // Filter for KioskOwnerCap objects
   const filteredObjects = allObjects.filter(obj => {
-    const objType = obj.type || '';
+    const objType = obj.data?.type || obj.type || '';
     return objType.includes('kiosk') && 
            (objType.includes('KioskOwnerCap') || objType.includes('OwnerCap'));
   });

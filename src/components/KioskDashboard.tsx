@@ -100,8 +100,8 @@ export function KioskDashboard() {
             addDebugLog(`Object ${index} full structure: ${JSON.stringify(obj, null, 2)}`);
           }
           
-          // Try different ways to get the type
-          const objType = obj.type || obj.data?.type || 'unknown';
+          // The type is in obj.data.type based on the structure we see
+          const objType = obj.data?.type || obj.type || 'unknown';
           if (index < 3) {
             addDebugLog(`Object ${index} extracted type: ${objType}`);
           }
