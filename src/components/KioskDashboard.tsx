@@ -26,20 +26,6 @@ export function KioskDashboard() {
   const [debugLogs, setDebugLogs] = useState<string[]>([]);
   const [error, setError] = useState<string | null>(null);
 
-  // Sync network changes with sui client
-  useEffect(() => {
-    switchNetwork(currentNetwork);
-    // Clear data when network changes
-    setKiosks([]);
-    setNFTs([]);
-    setError(null);
-    
-    // Reload data if connected
-    if (connected && account?.address) {
-      loadKioskData();
-    }
-  }, [currentNetwork]);
-
   const addDebugLog = useCallback((message: string) => {
     console.log(`[Kiosk Debug] ${message}`);
     setDebugLogs(prev => [`${new Date().toLocaleTimeString()}: ${message}`, ...prev.slice(0, 9)]);
@@ -104,8 +90,19 @@ export function KioskDashboard() {
   }, [connected, account?.address, currentNetwork, addDebugLog]);
 
   useEffect(() => {
-    loadKioskData();
-  }, [loadKioskData]);
+    // This single effect handles all data loading and state clearing logic.
+    // It runs when the user connects, disconnects, or changes the network.
+    switchNetwork(currentNetwork);
+    
+    // Always clear data on network change or disconnection to avoid showing stale data.
+    setKiosks([]);
+    setNFTs([]);
+    setError(null);
+
+    if (connected && account?.address) {
+      loadKioskData();
+    }
+  }, [connected, account?.address, currentNetwork]); // We intentionally omit loadKioskData to break the loop
 
   // Memoize expensive calculations
   const nftTypeCount = useMemo(() => {
