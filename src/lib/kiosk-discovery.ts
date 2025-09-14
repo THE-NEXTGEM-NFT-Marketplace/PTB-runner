@@ -150,13 +150,14 @@ export async function getUserKiosks(walletAddress: string): Promise<KioskInfo[]>
   log('info', 'Starting kiosk discovery', { walletAddress });
   
   try {
-    log('debug', 'Trying specific filter first...');
+    console.log('Starting kiosk discovery for:', walletAddress);
+    
     const ownedObjects = await fetchKioskOwnerCaps(walletAddress);
-    log('debug', 'Specific filter result', { foundObjects: ownedObjects.data.length });
+    console.log('Fetch result:', { foundObjects: ownedObjects.data.length });
     
     const kiosks = await processKioskOwnerCaps(ownedObjects);
     
-    log('info', 'Kiosk discovery completed', { 
+    console.log('Kiosk discovery completed:', { 
       walletAddress, 
       kiosksFound: kiosks.length 
     });
@@ -164,27 +165,16 @@ export async function getUserKiosks(walletAddress: string): Promise<KioskInfo[]>
     return kiosks;
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-    log('warn', 'Specific filter failed, trying broader search', { 
+    console.error('Kiosk discovery failed:', { 
       walletAddress, 
       error: errorMessage 
     });
     
-    // Try the broader search as fallback
-    try {
-      log('debug', 'Trying broader search...');
-      return await fetchAllObjectsWithFilter(walletAddress);
-    } catch (broaderError) {
-      log('error', 'Both strategies failed', { 
-        walletAddress, 
-        specificError: errorMessage,
-        broaderError: broaderError instanceof Error ? broaderError.message : String(broaderError)
-      });
-      throw new KioskDiscoveryError(
-        `Failed to fetch kiosks: ${errorMessage}`,
-        'KIOSK_DISCOVERY_FAILED',
-        { walletAddress }
-      );
-    }
+    throw new KioskDiscoveryError(
+      `Failed to fetch kiosks: ${errorMessage}`,
+      'KIOSK_DISCOVERY_FAILED',
+      { walletAddress }
+    );
   }
 }
 
@@ -323,64 +313,71 @@ async function processKioskOwnerCaps(ownedObjects: SuiOwnedObjectsResponse): Pro
  * Processes a single KioskOwnerCap object
  */
 async function processKioskOwnerCap(obj: SuiObjectData): Promise<KioskInfo | null> {
-  const objType = obj.data?.type || obj.type;
-  log('debug', 'Processing kiosk owner cap', { 
-    objectId: obj.objectId, 
+  // Handle the actual API response structure: obj.data.content.fields
+  const actualObj = obj.data || obj;
+  const objType = actualObj.type;
+  const content = actualObj.content;
+  
+  console.log('Processing kiosk owner cap:', {
+    objectId: actualObj.objectId,
     type: objType,
-    hasContent: !!obj.content,
-    hasFields: !!obj.content?.fields
+    hasContent: !!content,
+    hasFields: !!(content?.fields)
   });
   
-  if (!obj.content?.fields) {
-    log('warn', 'Object has no content or fields', { objectId: obj.objectId });
+  if (!content?.fields) {
+    console.warn('Object has no content or fields:', actualObj.objectId);
     return null;
   }
   
-  const fields = obj.content.fields;
-  log('debug', 'KioskOwnerCap fields', { 
-    objectId: obj.objectId,
+  const fields = content.fields;
+  console.log('KioskOwnerCap fields:', {
+    objectId: actualObj.objectId,
     fields: fields,
     availableFields: Object.keys(fields)
   });
   
-  const kioskId = extractKioskId(fields);
+  // Extract kiosk ID from the 'for' field
+  const kioskId = fields.for;
   
-  if (!kioskId) {
-    log('warn', 'No kiosk ID found in fields', { 
-      objectId: obj.objectId,
-      availableFields: Object.keys(fields),
-      fields: fields
+  if (!kioskId || typeof kioskId !== 'string') {
+    console.warn('No valid kiosk ID found in for field:', {
+      objectId: actualObj.objectId,
+      forField: kioskId,
+      availableFields: Object.keys(fields)
     });
     return null;
   }
   
   if (!isValidObjectId(kioskId)) {
-    log('warn', 'Invalid kiosk ID format', { 
-      objectId: obj.objectId,
-      kioskId 
+    console.warn('Invalid kiosk ID format:', {
+      objectId: actualObj.objectId,
+      kioskId
     });
     return null;
   }
   
-  log('debug', 'Found kiosk ID', { objectId: obj.objectId, kioskId });
+  console.log('Found kiosk ID:', { objectId: actualObj.objectId, kioskId });
   
   try {
     const itemCount = await getKioskItemCount(kioskId);
     
     return {
       id: kioskId,
-      ownerCapId: obj.objectId,
+      ownerCapId: actualObj.objectId,
       itemCount
     };
   } catch (error) {
-    log('warn', 'Failed to get kiosk item count, using 0', {
+    console.warn('Failed to get kiosk item count, using 0:', {
+      objectId: actualObj.objectId,
       kioskId,
       error: error instanceof Error ? error.message : String(error)
     });
     
+    // Return kiosk info with 0 items if count fails
     return {
       id: kioskId,
-      ownerCapId: obj.objectId,
+      ownerCapId: actualObj.objectId,
       itemCount: 0
     };
   }
@@ -421,11 +418,15 @@ async function getKioskItemCount(kioskId: string): Promise<number> {
     }) as SuiObjectResponse;
   });
   
-  if (!kioskObject.data?.content?.fields) {
+  // Handle the actual API response structure
+  const actualObj = kioskObject.data?.data || kioskObject.data;
+  const content = actualObj?.content;
+  
+  if (!content?.fields) {
     return 0;
   }
   
-  const fields = kioskObject.data.content.fields;
+  const fields = content.fields;
   const possibleCountFields = ['item_count', 'itemCount', 'items'];
   
   for (const fieldName of possibleCountFields) {
@@ -610,15 +611,19 @@ async function extractNFTFromFieldObject(
   fieldObject: SuiObjectData, 
   kioskId: string
 ): Promise<NFTInfo | null> {
-  if (!fieldObject.content?.fields) {
-    log('warn', 'Field object has no content or fields', { 
+  // Handle the actual API response structure
+  const actualObj = fieldObject.data || fieldObject;
+  const content = actualObj.content;
+  
+  if (!content?.fields) {
+    console.warn('Field object has no content or fields:', { 
       kioskId,
       fieldId: fieldObject.objectId 
     });
     return null;
   }
   
-  const fields = fieldObject.content.fields;
+  const fields = content.fields;
   
   // Strategy 1: Check if this is a kiosk item wrapper with a value field
   const wrapperValue = extractWrapperValue(fields);
