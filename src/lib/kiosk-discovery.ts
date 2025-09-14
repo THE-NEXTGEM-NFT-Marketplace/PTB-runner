@@ -150,7 +150,10 @@ export async function getUserKiosks(walletAddress: string): Promise<KioskInfo[]>
   log('info', 'Starting kiosk discovery', { walletAddress });
   
   try {
+    log('debug', 'Trying specific filter first...');
     const ownedObjects = await fetchKioskOwnerCaps(walletAddress);
+    log('debug', 'Specific filter result', { foundObjects: ownedObjects.data.length });
+    
     const kiosks = await processKioskOwnerCaps(ownedObjects);
     
     log('info', 'Kiosk discovery completed', { 
@@ -161,12 +164,27 @@ export async function getUserKiosks(walletAddress: string): Promise<KioskInfo[]>
     return kiosks;
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-    log('error', 'Failed to fetch kiosks', { walletAddress, error: errorMessage });
-    throw new KioskDiscoveryError(
-      `Failed to fetch kiosks: ${errorMessage}`,
-      'KIOSK_DISCOVERY_FAILED',
-      { walletAddress }
-    );
+    log('warn', 'Specific filter failed, trying broader search', { 
+      walletAddress, 
+      error: errorMessage 
+    });
+    
+    // Try the broader search as fallback
+    try {
+      log('debug', 'Trying broader search...');
+      return await fetchAllObjectsWithFilter(walletAddress);
+    } catch (broaderError) {
+      log('error', 'Both strategies failed', { 
+        walletAddress, 
+        specificError: errorMessage,
+        broaderError: broaderError instanceof Error ? broaderError.message : String(broaderError)
+      });
+      throw new KioskDiscoveryError(
+        `Failed to fetch kiosks: ${errorMessage}`,
+        'KIOSK_DISCOVERY_FAILED',
+        { walletAddress }
+      );
+    }
   }
 }
 
