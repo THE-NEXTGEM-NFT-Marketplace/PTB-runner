@@ -86,10 +86,16 @@ export function KioskDashboard() {
         const typeTest = await suiClient.getOwnedObjects({
           owner: account.address,
           limit: 10,
-          options: { showContent: false, showType: true }
+          options: { showContent: true, showType: true }
         });
         
-        const types = typeTest.data?.map(obj => obj.type).filter(Boolean) || [];
+        addDebugLog(`Raw response structure: ${JSON.stringify(typeTest.data?.[0] || {}, null, 2)}`);
+        
+        const types = typeTest.data?.map(obj => {
+          // Try different ways to get the type
+          return obj.type || obj.content?.type || obj.content?.dataType || 'unknown';
+        }).filter(Boolean) || [];
+        
         const uniqueTypes = [...new Set(types)];
         addDebugLog(`Found ${uniqueTypes.length} unique object types: ${uniqueTypes.slice(0, 5).join(', ')}${uniqueTypes.length > 5 ? '...' : ''}`);
         
