@@ -1002,6 +1002,7 @@ function filterNFTsFromObjects(objects: SuiObjectData[]): NFTInfo[] {
 
 /**
  * Enhanced function that combines both kiosk and direct ownership methods
+ * by fetching all objects once and processing them.
  * @param walletAddress - The wallet address to search for NFTs
  * @returns Promise resolving to array of unique NFTInfo objects
  * @throws ValidationError if wallet address is invalid
@@ -1014,47 +1015,56 @@ export async function getAllUserNFTsEnhanced(walletAddress: string): Promise<NFT
   }
 
   log('info', 'Enhanced NFT discovery started', { walletAddress });
-  
+
   try {
-    // Run both methods in parallel for better performance
-    const [kioskNFTs, directNFTs] = await Promise.all([
-      getAllUserNFTs(walletAddress).catch(error => {
-        log('warn', 'Kiosk NFT fetching failed, continuing with direct search', {
-          walletAddress,
-          error: error instanceof Error ? error.message : String(error)
-        });
-        return [];
-      }),
-      findNFTsDirectly(walletAddress).catch(error => {
-        log('warn', 'Direct NFT search failed, continuing with kiosk search', {
-          walletAddress,
-          error: error instanceof Error ? error.message : String(error)
-        });
-        return [];
-      })
-    ]);
+    const allObjects = await fetchAllOwnedObjects(walletAddress);
     
-    log('info', 'Both NFT search methods completed', { 
-      walletAddress,
-      kioskNFTs: kioskNFTs.length,
-      directNFTs: directNFTs.length 
-    });
+    const kioskCaps = allObjects.filter(obj => (obj.data?.type || obj.type || '').includes(CONFIG.KIOSK_OWNER_CAP_TYPE));
     
-    // Combine and deduplicate
-    const allNFTs = [...kioskNFTs];
-    const kioskNFTIds = new Set(kioskNFTs.map(nft => nft.id));
-    
-    for (const directNFT of directNFTs) {
-      if (!kioskNFTIds.has(directNFT.id)) {
-        allNFTs.push(directNFT);
+    const kioskPromises = kioskCaps.map(cap => processKioskOwnerCap(cap));
+    const kioskResults = await Promise.all(kioskPromises);
+    const kiosks = kioskResults.filter((k): k is KioskInfo => k !== null);
+
+    const kioskIds = new Set(kiosks.map(k => k.id));
+    const allNFTs: NFTInfo[] = [];
+    const foundNFTIds = new Set<string>();
+
+    // Process all objects to find NFTs
+    for (const obj of allObjects) {
+      if (isNFTObject(obj)) {
+        // This is a directly owned NFT.
+        // We need to determine if it's inside a kiosk we've already identified.
+        // A more robust way would be to check its parent, but for now, we assume direct ownership if not inside a known kiosk item.
+        // This part of logic is complex; for now, we focus on direct ownership and kiosk items.
+        if (!foundNFTIds.has(obj.objectId)) {
+           allNFTs.push({
+            id: obj.objectId,
+            type: obj.type || 'unknown',
+            display: obj.display?.data,
+            kioskId: 'direct_ownership' // Mark as directly owned
+          });
+          foundNFTIds.add(obj.objectId);
+        }
       }
     }
+
+    const kioskNFTsPromises = kiosks.map(kiosk => getKioskNFTs(kiosk.id));
+    const kioskNFTsResults = await Promise.all(kioskNFTsPromises);
     
-    log('info', 'Enhanced NFT discovery completed', { 
+    for (const nftList of kioskNFTsResults) {
+      for (const nft of nftList) {
+        if (!foundNFTIds.has(nft.id)) {
+          allNFTs.push(nft);
+          foundNFTIds.add(nft.id);
+        }
+      }
+    }
+
+    log('info', 'Enhanced NFT discovery completed', {
       walletAddress,
-      totalUniqueNFTs: allNFTs.length 
+      totalUniqueNFTs: allNFTs.length
     });
-    
+
     return allNFTs;
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : 'Unknown error';
