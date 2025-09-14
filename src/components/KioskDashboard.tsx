@@ -94,9 +94,18 @@ export function KioskDashboard() {
         addDebugLog(`Response has ${typeTest.data?.length || 0} objects`);
         
         const types = typeTest.data?.map((obj, index) => {
-          // Debug each object
-          addDebugLog(`Object ${index}: type=${obj.type}, objectId=${obj.objectId}`);
-          return obj.type || 'unknown';
+          // Debug first few objects to understand structure
+          if (index < 3) {
+            addDebugLog(`Object ${index}: type=${obj.type}, objectId=${obj.objectId}`);
+            addDebugLog(`Object ${index} full structure: ${JSON.stringify(obj, null, 2)}`);
+          }
+          
+          // Try different ways to get the type
+          const objType = obj.type || obj.data?.type || 'unknown';
+          if (index < 3) {
+            addDebugLog(`Object ${index} extracted type: ${objType}`);
+          }
+          return objType;
         }).filter(Boolean) || [];
         
         const uniqueTypes = [...new Set(types)];
