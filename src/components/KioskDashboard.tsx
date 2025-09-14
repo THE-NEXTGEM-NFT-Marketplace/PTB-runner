@@ -85,23 +85,34 @@ export function KioskDashboard() {
       try {
         const typeTest = await suiClient.getOwnedObjects({
           owner: account.address,
-          limit: 10,
+          limit: 50, // Get more objects
           options: { showContent: true, showType: true }
         });
         
         addDebugLog(`Raw response structure: ${JSON.stringify(typeTest.data?.[0] || {}, null, 2)}`);
         
         const types = typeTest.data?.map(obj => {
-          // Try different ways to get the type
-          return obj.type || obj.content?.type || obj.content?.dataType || 'unknown';
+          // The type is directly on the object
+          return obj.type || 'unknown';
         }).filter(Boolean) || [];
         
         const uniqueTypes = [...new Set(types)];
-        addDebugLog(`Found ${uniqueTypes.length} unique object types: ${uniqueTypes.slice(0, 5).join(', ')}${uniqueTypes.length > 5 ? '...' : ''}`);
+        addDebugLog(`Found ${uniqueTypes.length} unique object types: ${uniqueTypes.slice(0, 10).join(', ')}${uniqueTypes.length > 10 ? '...' : ''}`);
         
         // Check for kiosk-related types
         const kioskTypes = uniqueTypes.filter(type => type?.toLowerCase().includes('kiosk'));
         addDebugLog(`Kiosk-related types found: ${kioskTypes.length > 0 ? kioskTypes.join(', ') : 'None'}`);
+        
+        // Check for NFT-related types
+        const nftTypes = uniqueTypes.filter(type => 
+          type?.toLowerCase().includes('nft') || 
+          type?.toLowerCase().includes('token') ||
+          type?.toLowerCase().includes('coin')
+        );
+        addDebugLog(`NFT/Token-related types found: ${nftTypes.length > 0 ? nftTypes.join(', ') : 'None'}`);
+        
+        // Show all types for debugging
+        addDebugLog(`All types: ${uniqueTypes.join(', ')}`);
         
       } catch (typeError) {
         addDebugLog(`Type check failed: ${typeError instanceof Error ? typeError.message : String(typeError)}`);

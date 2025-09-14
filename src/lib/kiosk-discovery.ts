@@ -248,8 +248,8 @@ async function fetchAllObjectsWithFilter(walletAddress: string): Promise<SuiOwne
   
   // Debug: Log all object types found
   const allTypes = allObjects.map(obj => {
-    // Try different ways to get the type
-    return obj.type || obj.content?.type || obj.content?.dataType || 'unknown';
+    // The type is directly on the object
+    return obj.type || 'unknown';
   }).filter(Boolean);
   const uniqueTypes = [...new Set(allTypes)];
   log('debug', 'All object types found', { 
@@ -259,7 +259,7 @@ async function fetchAllObjectsWithFilter(walletAddress: string): Promise<SuiOwne
   
   // Filter for KioskOwnerCap objects
   const filteredObjects = allObjects.filter(obj => {
-    const objType = obj.type || obj.content?.type || obj.content?.dataType || '';
+    const objType = obj.type || '';
     return objType.includes('kiosk') && 
            (objType.includes('KioskOwnerCap') || objType.includes('OwnerCap'));
   });
@@ -267,7 +267,8 @@ async function fetchAllObjectsWithFilter(walletAddress: string): Promise<SuiOwne
   log('info', 'Manual filtering completed', { 
     totalObjects: allObjects.length,
     filteredObjects: filteredObjects.length,
-    kioskTypes: uniqueTypes.filter(type => type?.toLowerCase().includes('kiosk'))
+    kioskTypes: uniqueTypes.filter(type => type?.toLowerCase().includes('kiosk')),
+    allTypes: uniqueTypes // Show all types for debugging
   });
   
   return { data: filteredObjects };
