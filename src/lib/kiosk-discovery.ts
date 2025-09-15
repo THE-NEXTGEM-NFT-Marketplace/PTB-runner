@@ -568,16 +568,11 @@ async function fetchAllOwnedObjects(walletAddress: string): Promise<SuiObjectDat
       }) as unknown as PaginatedObjectsResponse;
     });
     
-    const validObjects = batch.data.filter(Boolean) as SuiObjectData[];
+    const validObjects = batch.data.map(obj => obj.data).filter(Boolean) as SuiObjectData[];
     allObjects.push(...validObjects);
 
     cursor = batch.nextCursor;
     paginationCount++;
-    
-    // Rate limiting
-    if (cursor) {
-      await delay(CONFIG.RATE_LIMIT_DELAY);
-    }
     
     log('debug', 'Fetched batch of owned objects', { 
       walletAddress,
