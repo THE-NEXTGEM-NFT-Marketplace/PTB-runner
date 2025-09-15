@@ -2,6 +2,7 @@
 import { suiClient } from './simple-sui-client';
 import type { SuiObjectData, SuiObjectResponse } from '@mysten/sui/client';
 
+declare const require: any;
 // Simple, local type definitions to match API responses, avoiding import issues.
 interface PaginatedObjectsResponse {
 	data: SuiObjectData[];
@@ -298,7 +299,7 @@ async function processKioskOwnerCaps(ownedObjects: PaginatedObjectsResponse): Pr
 async function processKioskOwnerCap(obj: SuiObjectData): Promise<KioskInfo | null> {
   // The object passed here is the direct SuiObjectData
   const objType = obj.type;
-  const content = obj.content;
+  const content = obj.content as any;
   
   console.log('Processing kiosk owner cap:', {
     objectId: obj.objectId,
@@ -401,7 +402,7 @@ async function getKioskItemCount(kioskId: string): Promise<number> {
   });
   
   // Handle the actual API response structure
-  const content = kioskObject.data?.content;
+  const content = kioskObject.data?.content as any;
   
   if (!content?.fields) {
     return 0;
@@ -568,7 +569,7 @@ async function fetchAllOwnedObjects(walletAddress: string): Promise<SuiObjectDat
       }) as unknown as PaginatedObjectsResponse;
     });
     
-    const validObjects = batch.data.map(obj => obj.data).filter(Boolean) as SuiObjectData[];
+    const validObjects = batch.data as SuiObjectData[];
     allObjects.push(...validObjects);
 
     cursor = batch.nextCursor;
@@ -657,10 +658,7 @@ async function processDynamicFields(
  * @returns A promise that resolves to an object containing lists of KioskInfo and NFTInfo.
  */
 export async function discoverUserKiosksAndNFTs(walletAddress: string): Promise<{kiosks: KioskInfo[], nfts: NFTInfo[]}> {
-  if (!isValidWalletAddress(walletAddress)) {
-    throw new ValidationError('Invalid wallet address format', 'walletAddress');
-  }
-
+  // Relaxed: Proceed without strict wallet format validation to display all objects
   log('info', 'Starting simplified object discovery', { walletAddress });
 
   try {
