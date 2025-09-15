@@ -11,7 +11,8 @@ import { Link } from 'react-router-dom';
 import {
   KioskInfo,
   NFTInfo,
-  discoverUserKiosksAndNFTs
+  discoverUserKiosksAndNFTs,
+  discoverUserKiosksAndNFTsProgressive
 } from '@/lib/kiosk-discovery';
 import { WalletConnection } from './WalletConnection';
 import { NFTGrid } from './NFTGrid';
@@ -43,6 +44,7 @@ export function KioskDashboard() {
   };
 
   useEffect(() => {
+    let cancelled = false;
     const loadKioskData = async () => {
       if (!connected || !account?.address) {
         addDebugLog('No wallet connection or address available');
@@ -56,13 +58,15 @@ export function KioskDashboard() {
       addDebugLog(`Starting kiosk discovery for address: ${account.address}`);
 
       try {
-        addDebugLog('Fetching user kiosks and NFTs...');
-        const { kiosks: userKiosks, nfts: userNFTs } = await discoverUserKiosksAndNFTs(account.address);
-        addDebugLog(`Found ${userKiosks.length} kiosks and ${userNFTs.length} NFTs`);
-        setKiosks(userKiosks);
-        setNFTs(userNFTs);
-        
-        if (userKiosks.length === 0) {
+        addDebugLog('Fetching user kiosks and NFTs progressively...');
+        await discoverUserKiosksAndNFTsProgressive(account.address, (update) => {
+          if (cancelled) return;
+          if (update.kiosks) setKiosks(update.kiosks);
+          if (update.nfts) setNFTs(prev => [...prev, ...update.nfts!]);
+          if (update.done) addDebugLog('Progressive loading complete');
+        });
+
+        if (!cancelled && kiosks.length === 0) {
           setError(`No kiosks found. Make sure you have kiosks on the current network (${currentNetwork}).`);
         }
       } catch (error: any) {
@@ -71,12 +75,13 @@ export function KioskDashboard() {
         setError(errorMessage);
         console.error('Error loading kiosk data:', error);
       } finally {
-        setLoading(false);
+        if (!cancelled) setLoading(false);
       }
     };
     
     switchNetwork(currentNetwork);
     loadKioskData();
+    return () => { cancelled = true; };
   }, [connected, account, currentNetwork, addDebugLog, refreshCounter]);
 
   const nftTypeCount = useMemo(() => {

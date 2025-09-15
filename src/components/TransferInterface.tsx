@@ -5,15 +5,16 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { ArrowRightLeft, Package, Code, AlertCircle, Send, Users, Loader2 } from 'lucide-react';
+import { ArrowRightLeft, Package, Code, AlertCircle, Users, Loader2 } from 'lucide-react';
 import { NFTInfo, KioskInfo } from '@/lib/kiosk-discovery';
 import { NFTGrid } from './NFTGrid';
 import { constructTransactionBlock } from '@/lib/transaction-builder';
 import { parsePtbJson } from '@/lib/ptb-parser';
+import { parseWalletAddresses, prepareBulkTransferRecipients, createBulkTransferTransaction } from '@/lib/kiosk-discovery';
+import { Transaction } from '@mysten/sui/transactions';
 import { useToast } from '@/hooks/use-toast';
 import { discoverRecipient, createSmartKioskTransferTransaction, RecipientInfo } from '@/lib/smart-kiosk';
 
@@ -24,10 +25,11 @@ interface TransferInterfaceProps {
 }
 
 export function TransferInterface({ nfts, kiosks, onTransferComplete }: TransferInterfaceProps) {
-  const { signAndExecuteTransaction } = useWallet();
+  const { signAndExecuteTransaction, account } = useWallet();
   const { toast } = useToast();
   const [selectedNFTs, setSelectedNFTs] = useState<NFTInfo[]>([]);
   const [recipientAddress, setRecipientAddress] = useState('');
+  const [bulkAddresses, setBulkAddresses] = useState('');
   const [recipientInfo, setRecipientInfo] = useState<RecipientInfo | null>(null);
   const [loadingRecipient, setLoadingRecipient] = useState(false);
   const [customPtb, setCustomPtb] = useState('');
@@ -57,52 +59,7 @@ export function TransferInterface({ nfts, kiosks, onTransferComplete }: Transfer
     return () => clearTimeout(timeoutId);
   }, [recipientAddress]);
 
-  const handleDirectTransfer = async () => {
-    if (!selectedNFTs.length || !recipientAddress) {
-      toast({
-        title: "Invalid Selection",
-        description: "Please select NFTs and enter a recipient address",
-        variant: "destructive"
-      });
-      return;
-    }
-
-    setExecuting(true);
-    try {
-      // Create PTB JSON for direct transfer
-      const transferCommands = selectedNFTs.map(nft => ({
-        type: 'transferObjects' as const,
-        objects: [{ type: 'object' as const, value: nft.id }],
-        recipient: recipientAddress
-      }));
-
-      const ptbJson = { commands: transferCommands };
-      const commands = parsePtbJson(JSON.stringify(ptbJson));
-      const txb = constructTransactionBlock(commands);
-
-      const result = await signAndExecuteTransaction({
-        transaction: txb,
-      });
-
-      toast({
-        title: "Transfer Successful",
-        description: `Transferred ${selectedNFTs.length} NFT(s) successfully`,
-      });
-
-      setSelectedNFTs([]);
-      setRecipientAddress('');
-      onTransferComplete();
-    } catch (error: any) {
-      console.error('Transfer error:', error);
-      toast({
-        title: "Transfer Failed",
-        description: error.message || "Failed to transfer NFTs",
-        variant: "destructive"
-      });
-    } finally {
-      setExecuting(false);
-    }
-  };
+  // Removed direct address transfer (kiosk-only policy)
 
   const handleKioskTransfer = async () => {
     if (!selectedNFTs.length || !recipientInfo) {
@@ -143,6 +100,81 @@ export function TransferInterface({ nfts, kiosks, onTransferComplete }: Transfer
       toast({
         title: "Kiosk Transfer Failed",
         description: error.message || "Failed to transfer NFTs to kiosk",
+        variant: "destructive"
+      });
+    } finally {
+      setExecuting(false);
+    }
+  };
+
+  const handleBulkKioskTransfer = async () => {
+    if (!selectedNFTs.length || !bulkAddresses.trim()) {
+      toast({
+        title: "Invalid Selection",
+        description: "Select NFTs and enter comma-separated recipient addresses",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    // Require that all selected NFTs are same type and at least equal to recipient count
+    const uniqueTypes = Array.from(new Set(selectedNFTs.map(n => n.type)));
+    if (uniqueTypes.length !== 1) {
+      toast({
+        title: "Single Type Required",
+        description: "Select NFTs of one type for bulk transfer",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    if (!account?.address) {
+      toast({
+        title: "No Wallet",
+        description: "Connect your wallet to send NFTs",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    setExecuting(true);
+    try {
+      const nftType = uniqueTypes[0];
+      const addresses = parseWalletAddresses(bulkAddresses);
+      if (addresses.length === 0) {
+        throw new Error('No valid recipient addresses');
+      }
+
+      if (selectedNFTs.length < addresses.length) {
+        throw new Error(`You selected ${selectedNFTs.length} NFTs but provided ${addresses.length} addresses`);
+      }
+
+      const recipients = await prepareBulkTransferRecipients(addresses as string[]);
+      const nftIds = selectedNFTs.map(n => n.id).slice(0, recipients.length) as string[];
+      const senderAddress: string = account?.address ? account.address : '';
+      if (!senderAddress) {
+        throw new Error('Wallet address unavailable');
+      }
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const transaction: any = createBulkTransferTransaction(senderAddress as string, recipients as any, nftType as string, nftIds as string[]);
+
+      await (signAndExecuteTransaction as any)({ transaction });
+
+      toast({
+        title: "Bulk Transfer Submitted",
+        description: `Sending ${nftIds.length} NFT(s) to ${recipients.length} kiosk(s)`,
+      });
+
+      setSelectedNFTs([]);
+      setBulkAddresses('');
+      setRecipientAddress('');
+      setRecipientInfo(null);
+      onTransferComplete();
+    } catch (error: any) {
+      console.error('Bulk kiosk transfer error:', error);
+      toast({
+        title: "Bulk Transfer Failed",
+        description: error.message || "Failed to prepare bulk kiosk transfer",
         variant: "destructive"
       });
     } finally {
@@ -232,54 +264,12 @@ export function TransferInterface({ nfts, kiosks, onTransferComplete }: Transfer
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <Tabs defaultValue="simple" className="space-y-4">
+          <Tabs defaultValue="kiosk" className="space-y-4">
             <TabsList>
-              <TabsTrigger value="simple">Simple Transfer</TabsTrigger>
               <TabsTrigger value="kiosk">Kiosk Transfer</TabsTrigger>
+              <TabsTrigger value="bulk">Bulk Kiosk Transfer</TabsTrigger>
               <TabsTrigger value="custom">Custom PTB</TabsTrigger>
             </TabsList>
-
-            <TabsContent value="simple" className="space-y-4">
-              {/* NFT Selection */}
-              <div>
-                <Label className="text-base font-medium mb-3 block">Select NFTs to Transfer</Label>
-                <Card className="bg-muted/20 border-border/30">
-                  <CardContent className="p-4">
-                    <NFTGrid 
-                      nfts={nfts} 
-                      loading={false} 
-                      selectable={true}
-                      onSelectionChange={setSelectedNFTs}
-                    />
-                  </CardContent>
-                </Card>
-                {selectedNFTs.length > 0 && (
-                  <Badge variant="secondary" className="mt-2">
-                    {selectedNFTs.length} NFT(s) selected
-                  </Badge>
-                )}
-              </div>
-
-              {/* Recipient Address */}
-              <div>
-                <Label htmlFor="recipient">Recipient Address</Label>
-                <Input
-                  id="recipient"
-                  placeholder="0x..."
-                  value={recipientAddress}
-                  onChange={(e) => setRecipientAddress(e.target.value)}
-                />
-              </div>
-
-              <Button 
-                onClick={handleDirectTransfer}
-                disabled={!selectedNFTs.length || !recipientAddress || executing}
-                className="w-full"
-              >
-                <Send className="w-4 h-4 mr-2" />
-                {executing ? 'Transferring...' : 'Transfer NFTs'}
-              </Button>
-            </TabsContent>
 
             <TabsContent value="kiosk" className="space-y-4">
               {/* NFT Selection */}
@@ -350,6 +340,54 @@ export function TransferInterface({ nfts, kiosks, onTransferComplete }: Transfer
                 {executing ? 'Transferring...' : 
                  loadingRecipient ? 'Checking recipient...' : 
                  recipientInfo?.hasKiosk ? 'Transfer to Kiosk' : 'Create Kiosk & Transfer'}
+              </Button>
+            </TabsContent>
+
+            <TabsContent value="bulk" className="space-y-4">
+              <div>
+                <Label className="text-base font-medium mb-3 block">Select NFTs (one type) for Bulk Transfer</Label>
+                <Card className="bg-muted/20 border-border/30">
+                  <CardContent className="p-4">
+                    <NFTGrid 
+                      nfts={nfts} 
+                      loading={false} 
+                      selectable={true}
+                      onSelectionChange={setSelectedNFTs}
+                    />
+                  </CardContent>
+                </Card>
+                {selectedNFTs.length > 0 && (
+                  <span className="mt-2 inline-block text-xs text-muted-foreground">
+                    {selectedNFTs.length} NFT(s) selected
+                  </span>
+                )}
+              </div>
+
+              <div>
+                <Label htmlFor="bulkRecipients">Recipient Wallet Addresses (comma-separated)</Label>
+                <Textarea
+                  id="bulkRecipients"
+                  placeholder="0xabc..., 0xdef..., 0x123..."
+                  value={bulkAddresses}
+                  onChange={(e) => setBulkAddresses(e.target.value)}
+                  rows={3}
+                />
+              </div>
+
+              <Alert>
+                <AlertCircle className="h-4 w-4" />
+                <AlertDescription>
+                  Sends 1 NFT of the selected type to each address's kiosk. If a recipient has no kiosk, it will be created automatically. Direct-address transfers are disabled.
+                </AlertDescription>
+              </Alert>
+
+              <Button 
+                onClick={handleBulkKioskTransfer}
+                disabled={!selectedNFTs.length || !bulkAddresses.trim() || executing}
+                className="w-full"
+              >
+                <Package className="w-4 h-4 mr-2" />
+                {executing ? 'Submitting...' : 'Send Bulk to Kiosks'}
               </Button>
             </TabsContent>
 

@@ -1,8 +1,8 @@
 // Kiosk Discovery and NFT Management Utilities
 import { suiClient } from './simple-sui-client';
 import type { SuiObjectData, SuiObjectResponse } from '@mysten/sui/client';
-
 declare const require: any;
+
 // Simple, local type definitions to match API responses, avoiding import issues.
 interface PaginatedObjectsResponse {
 	data: SuiObjectData[];
@@ -133,7 +133,7 @@ export async function getUserKiosks(walletAddress: string): Promise<KioskInfo[]>
 
   log('info', 'Starting kiosk discovery', { walletAddress });
   
-  try {
+	try {
     console.log('Starting kiosk discovery for:', walletAddress);
     
     const ownedObjects = await fetchKioskOwnerCaps(walletAddress);
@@ -299,21 +299,21 @@ async function processKioskOwnerCaps(ownedObjects: PaginatedObjectsResponse): Pr
 async function processKioskOwnerCap(obj: SuiObjectData): Promise<KioskInfo | null> {
   // The object passed here is the direct SuiObjectData
   const objType = obj.type;
-  const content = obj.content as any;
+  const content = obj.content;
   
   console.log('Processing kiosk owner cap:', {
     objectId: obj.objectId,
     type: objType,
     hasContent: !!content,
-    hasFields: !!(content?.fields)
+    hasFields: !!((content as any)?.fields)
   });
   
-  if (!content?.fields) {
+  if (!(content as any)?.fields) {
     console.warn('Object has no content or fields:', obj.objectId);
     return null;
   }
   
-  const fields = content.fields;
+  const fields = (content as any).fields as Record<string, any>;
   console.log('KioskOwnerCap fields:', {
     objectId: obj.objectId,
     fields: fields,
@@ -404,11 +404,11 @@ async function getKioskItemCount(kioskId: string): Promise<number> {
   // Handle the actual API response structure
   const content = kioskObject.data?.content as any;
   
-  if (!content?.fields) {
+  if (!content || content.dataType !== 'moveObject' || !content.fields) {
     return 0;
   }
   
-  const fields = content.fields;
+  const fields = content.fields as Record<string, unknown>;
   const possibleCountFields = ['item_count', 'itemCount', 'items'];
   
   for (const fieldName of possibleCountFields) {
@@ -529,9 +529,9 @@ async function batchFetchObjects(objectIds: string[]): Promise<SuiObjectData[]> 
     });
 
     // Filter out potential errors and return valid data
-    return objects
-      .filter(obj => obj.data)
-      .map(obj => obj.data as SuiObjectData);
+    return (objects as any[])
+      .filter(obj => (obj as any).data)
+      .map(obj => (obj as any).data as SuiObjectData);
   } catch (error) {
     log('error', 'Failed to batch fetch objects', { 
       error: error instanceof Error ? error.message : String(error)
@@ -569,7 +569,7 @@ async function fetchAllOwnedObjects(walletAddress: string): Promise<SuiObjectDat
       }) as unknown as PaginatedObjectsResponse;
     });
     
-    const validObjects = batch.data as SuiObjectData[];
+    const validObjects = batch.data as unknown as SuiObjectData[];
     allObjects.push(...validObjects);
 
     cursor = batch.nextCursor;
@@ -658,7 +658,10 @@ async function processDynamicFields(
  * @returns A promise that resolves to an object containing lists of KioskInfo and NFTInfo.
  */
 export async function discoverUserKiosksAndNFTs(walletAddress: string): Promise<{kiosks: KioskInfo[], nfts: NFTInfo[]}> {
-  // Relaxed: Proceed without strict wallet format validation to display all objects
+  if (!isValidWalletAddress(walletAddress)) {
+    throw new ValidationError('Invalid wallet address format', 'walletAddress');
+  }
+
   log('info', 'Starting simplified object discovery', { walletAddress });
 
   try {
@@ -694,6 +697,77 @@ export async function discoverUserKiosksAndNFTs(walletAddress: string): Promise<
       { walletAddress }
     );
   }
+}
+
+/**
+ * Progressive variant: streams back partial results via onProgress callback.
+ * Calls onProgress multiple times with incremental NFT batches and final done=true.
+ */
+export async function discoverUserKiosksAndNFTsProgressive(
+	walletAddress: string,
+	onProgress: (update: { kiosks?: KioskInfo[]; nfts?: NFTInfo[]; done?: boolean }) => void
+): Promise<{ kiosks: KioskInfo[]; nfts: NFTInfo[] }> {
+	if (!isValidWalletAddress(walletAddress)) {
+		throw new ValidationError('Invalid wallet address format', 'walletAddress');
+	}
+
+	log('info', 'Starting progressive discovery', { walletAddress });
+
+	const collectedNFTs: NFTInfo[] = [];
+	let reportedKiosks = false;
+
+	let cursor: string | null | undefined = null;
+	let paginationCount = 0;
+
+	try {
+		do {
+			if (paginationCount >= CONFIG.MAX_PAGINATION_LIMIT) break;
+			const batch: PaginatedObjectsResponse = await withRetry(async () => {
+				return await suiClient.getOwnedObjects({
+					owner: walletAddress,
+					cursor: cursor || undefined,
+					options: { showContent: true, showType: true, showDisplay: true },
+				}) as unknown as PaginatedObjectsResponse;
+			});
+
+			const validObjects = batch.data as unknown as SuiObjectData[];
+			const nfts = validObjects.map(obj => ({
+				id: (obj as any).objectId,
+				type: (obj as any).type || 'unknown',
+				display: {
+					name: (obj as any).display?.data?.name || `Object ID: ${String((obj as any).objectId).slice(0, 10)}...`,
+					description: (obj as any).display?.data?.description || `Type: ${(obj as any).type}`,
+					image_url: (obj as any).display?.data?.image_url,
+				},
+				kioskId: 'wallet',
+			})) as NFTInfo[];
+
+			if (!reportedKiosks) {
+				reportedKiosks = true;
+				onProgress({ kiosks: [{ id: 'wallet', ownerCapId: 'wallet', itemCount: 0 }] });
+			}
+
+			if (nfts.length > 0) {
+				collectedNFTs.push(...nfts);
+				onProgress({ nfts });
+			}
+
+			cursor = batch.nextCursor;
+			paginationCount++;
+		} while (cursor);
+
+		// Final callback
+		onProgress({ done: true, kiosks: [{ id: 'wallet', ownerCapId: 'wallet', itemCount: collectedNFTs.length }] });
+		return { kiosks: [{ id: 'wallet', ownerCapId: 'wallet', itemCount: collectedNFTs.length }], nfts: collectedNFTs };
+	} catch (error) {
+		const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+		log('error', 'Progressive discovery failed', { walletAddress, error: errorMessage });
+		throw new KioskDiscoveryError(
+			`Progressive kiosk and NFT discovery failed: ${errorMessage}`,
+			'PROGRESSIVE_DISCOVERY_FAILED',
+			{ walletAddress }
+		);
+	}
 }
 
 
@@ -778,7 +852,7 @@ export interface NFTSelection {
 }
 
 // Utility functions for bulk transfers
-function parseWalletAddresses(input: string): string[] {
+export function parseWalletAddresses(input: string): string[] {
   const addresses = input
     .split(',')
     .map(addr => addr.trim())
@@ -1111,6 +1185,58 @@ export async function bulkTransferNFTs(
       { senderWalletAddress, nftType }
     );
   }
+}
+
+/**
+ * Prepare a bulk kiosk-only transfer and return a Transaction ready to sign.
+ * Does not execute the transaction.
+ */
+export async function prepareBulkKioskTransfer(
+	senderWalletAddress: string,
+	recipientAddressesInput: string,
+	nftType: string
+): Promise<{
+	transaction: any;
+	recipients: BulkTransferRecipient[];
+	nftIds: string[];
+}> {
+	if (!isValidWalletAddress(senderWalletAddress)) {
+		throw new ValidationError('Invalid sender wallet address format', 'senderWalletAddress');
+	}
+	if (!nftType || nftType.trim().length === 0) {
+		throw new ValidationError('NFT type is required', 'nftType');
+	}
+	if (!recipientAddressesInput || recipientAddressesInput.trim().length === 0) {
+		throw new ValidationError('Recipient addresses are required', 'recipientAddresses');
+	}
+
+	const recipientAddresses = parseWalletAddresses(recipientAddressesInput);
+	if (recipientAddresses.length === 0) {
+		throw new ValidationError('No valid recipient addresses found', 'recipients');
+	}
+
+	const nftSelections = await getAvailableNFTTypes(senderWalletAddress);
+	const selectedNFTType = nftSelections.find(selection => selection.type === nftType);
+	if (!selectedNFTType) {
+		throw new ValidationError(`NFT type '${nftType}' not found in sender's collection`, 'nftType');
+	}
+	if (selectedNFTType.availableCount < recipientAddresses.length) {
+		throw new ValidationError(
+			`Not enough NFTs available. Required: ${recipientAddresses.length}, Available: ${selectedNFTType.availableCount}`,
+			'nftCount'
+		);
+	}
+
+	const recipients = await prepareBulkTransferRecipients(recipientAddresses);
+	const nftsToTransfer = selectedNFTType.nftIds.slice(0, recipients.length);
+	const transaction = createBulkTransferTransaction(
+		senderWalletAddress,
+		recipients,
+		nftType,
+		nftsToTransfer
+	);
+
+	return { transaction, recipients, nftIds: nftsToTransfer };
 }
 
 /**
