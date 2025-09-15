@@ -2,6 +2,22 @@
 import { suiClient } from './simple-sui-client';
 import type { SuiObjectData, SuiObjectResponse } from '@mysten/sui/client';
 
+// Simple, local type definitions to match API responses, avoiding import issues.
+interface PaginatedObjectsResponse {
+	data: SuiObjectData[];
+	nextCursor?: string | null;
+	hasNextPage: boolean;
+}
+
+interface DynamicFieldsResponse {
+	data: {
+		objectId: string;
+		name: string;
+	}[];
+	nextCursor?: string | null;
+	hasNextPage: boolean;
+}
+
 // Configuration constants
 const CONFIG = {
   RATE_LIMIT_DELAY: 100, // 100ms between API calls
@@ -12,41 +28,7 @@ const CONFIG = {
   RETRY_DELAY: 1000, // 1 second between retries
 } as const;
 
-// Sui API Response Types
-interface SuiObjectData {
-  objectId: string;
-  type?: string;
-  content?: {
-    dataType: string;
-    fields: Record<string, unknown>;
-  };
-  display?: {
-    data?: {
-      name?: string;
-      description?: string;
-      image_url?: string;
-    };
-  };
-}
-
-interface SuiOwnedObjectsResponse {
-  data: SuiObjectData[];
-  nextCursor?: string | null;
-}
-
-interface SuiDynamicField {
-  objectId: string;
-  name: string;
-}
-
-interface SuiDynamicFieldsResponse {
-  data: SuiDynamicField[];
-  nextCursor?: string | null;
-}
-
-interface SuiObjectResponse {
-  data?: SuiObjectData | null;
-}
+// Sui API Response Types - REMOVED, now using official types from @mysten/sui/client
 
 // Custom Error Types
 export class KioskDiscoveryError extends Error {
@@ -182,7 +164,7 @@ export async function getUserKiosks(walletAddress: string): Promise<KioskInfo[]>
 /**
  * Fetches KioskOwnerCap objects using multiple strategies
  */
-async function fetchKioskOwnerCaps(walletAddress: string): Promise<SuiOwnedObjectsResponse> {
+async function fetchKioskOwnerCaps(walletAddress: string): Promise<PaginatedObjectsResponse> {
   try {
     // Strategy 1: Try specific KioskOwnerCap filter
     log('debug', 'Attempting specific KioskOwnerCap filter');
@@ -197,7 +179,7 @@ async function fetchKioskOwnerCaps(walletAddress: string): Promise<SuiOwnedObjec
           showContent: true,
           showType: true,
         }
-      }) as SuiOwnedObjectsResponse;
+      }) as unknown as PaginatedObjectsResponse;
     });
     
     log('info', 'Specific filter successful', { 
@@ -218,7 +200,7 @@ async function fetchKioskOwnerCaps(walletAddress: string): Promise<SuiOwnedObjec
 /**
  * Fetches all objects and filters for kiosk-related ones
  */
-async function fetchAllObjectsWithFilter(walletAddress: string): Promise<SuiOwnedObjectsResponse> {
+async function fetchAllObjectsWithFilter(walletAddress: string): Promise<PaginatedObjectsResponse> {
   const allObjects: SuiObjectData[] = [];
   let cursor: string | null = null;
   let paginationCount = 0;
@@ -237,7 +219,7 @@ async function fetchAllObjectsWithFilter(walletAddress: string): Promise<SuiOwne
           showContent: true,
           showType: true,
         }
-      }) as SuiOwnedObjectsResponse;
+      }) as unknown as PaginatedObjectsResponse;
     });
     
     allObjects.push(...batch.data);
@@ -258,7 +240,7 @@ async function fetchAllObjectsWithFilter(walletAddress: string): Promise<SuiOwne
   // Debug: Log all object types found
   const allTypes = allObjects.map(obj => {
     // The type is in obj.data.type based on the API response structure
-    return obj.data?.type || obj.type || 'unknown';
+    return obj.type || 'unknown';
   }).filter(Boolean);
   const uniqueTypes = [...new Set(allTypes)];
   log('debug', 'All object types found', { 
@@ -268,7 +250,7 @@ async function fetchAllObjectsWithFilter(walletAddress: string): Promise<SuiOwne
   
   // Filter for KioskOwnerCap objects
   const filteredObjects = allObjects.filter(obj => {
-    const objType = obj.data?.type || obj.type || '';
+    const objType = obj.type || '';
     return objType.includes('kiosk') && 
            (objType.includes('KioskOwnerCap') || objType.includes('OwnerCap'));
   });
@@ -280,17 +262,17 @@ async function fetchAllObjectsWithFilter(walletAddress: string): Promise<SuiOwne
     allTypes: uniqueTypes, // Show all types for debugging
     sampleFilteredObjects: filteredObjects.slice(0, 3).map(obj => ({
       objectId: obj.objectId,
-      type: obj.data?.type || obj.type
+      type: obj.type
     }))
   });
   
-  return { data: filteredObjects };
+  return { data: filteredObjects, hasNextPage: false };
 }
 
 /**
  * Processes KioskOwnerCap objects to extract kiosk information
  */
-async function processKioskOwnerCaps(ownedObjects: SuiOwnedObjectsResponse): Promise<KioskInfo[]> {
+async function processKioskOwnerCaps(ownedObjects: PaginatedObjectsResponse): Promise<KioskInfo[]> {
   const kiosks: KioskInfo[] = [];
   
   for (const obj of ownedObjects.data) {
@@ -314,26 +296,25 @@ async function processKioskOwnerCaps(ownedObjects: SuiOwnedObjectsResponse): Pro
  * Processes a single KioskOwnerCap object
  */
 async function processKioskOwnerCap(obj: SuiObjectData): Promise<KioskInfo | null> {
-  // Handle the actual API response structure: obj.data.content.fields
-  const actualObj = obj;
-  const objType = actualObj.type;
-  const content = actualObj.content;
+  // The object passed here is the direct SuiObjectData
+  const objType = obj.type;
+  const content = obj.content;
   
   console.log('Processing kiosk owner cap:', {
-    objectId: actualObj.objectId,
+    objectId: obj.objectId,
     type: objType,
     hasContent: !!content,
     hasFields: !!(content?.fields)
   });
   
   if (!content?.fields) {
-    console.warn('Object has no content or fields:', actualObj.objectId);
+    console.warn('Object has no content or fields:', obj.objectId);
     return null;
   }
   
   const fields = content.fields;
   console.log('KioskOwnerCap fields:', {
-    objectId: actualObj.objectId,
+    objectId: obj.objectId,
     fields: fields,
     availableFields: Object.keys(fields)
   });
@@ -343,7 +324,7 @@ async function processKioskOwnerCap(obj: SuiObjectData): Promise<KioskInfo | nul
   
   if (!kioskId || typeof kioskId !== 'string') {
     console.warn('No valid kiosk ID found in for field:', {
-      objectId: actualObj.objectId,
+      objectId: obj.objectId,
       forField: kioskId,
       availableFields: Object.keys(fields)
     });
@@ -352,25 +333,25 @@ async function processKioskOwnerCap(obj: SuiObjectData): Promise<KioskInfo | nul
   
   if (!isValidObjectId(kioskId)) {
     console.warn('Invalid kiosk ID format:', {
-      objectId: actualObj.objectId,
+      objectId: obj.objectId,
       kioskId
     });
     return null;
   }
   
-  console.log('Found kiosk ID:', { objectId: actualObj.objectId, kioskId });
+  console.log('Found kiosk ID:', { objectId: obj.objectId, kioskId });
   
   try {
     const itemCount = await getKioskItemCount(kioskId);
     
     return {
       id: kioskId,
-      ownerCapId: actualObj.objectId,
+      ownerCapId: obj.objectId,
       itemCount
     };
   } catch (error) {
     console.warn('Failed to get kiosk item count, using 0:', {
-      objectId: actualObj.objectId,
+      objectId: obj.objectId,
       kioskId,
       error: error instanceof Error ? error.message : String(error)
     });
@@ -378,7 +359,7 @@ async function processKioskOwnerCap(obj: SuiObjectData): Promise<KioskInfo | nul
     // Return kiosk info with 0 items if count fails
     return {
       id: kioskId,
-      ownerCapId: actualObj.objectId,
+      ownerCapId: obj.objectId,
       itemCount: 0
     };
   }
@@ -416,12 +397,11 @@ async function getKioskItemCount(kioskId: string): Promise<number> {
     return await suiClient.getObject({
       id: kioskId,
       options: { showContent: true }
-    });
+    }) as SuiObjectResponse;
   });
   
   // Handle the actual API response structure
-  const actualObj = kioskObject.data;
-  const content = actualObj?.content;
+  const content = kioskObject.data?.content;
   
   if (!content?.fields) {
     return 0;
@@ -477,8 +457,8 @@ export async function getKioskNFTs(kioskId: string): Promise<NFTInfo[]> {
 /**
  * Fetches dynamic fields for a kiosk with pagination and rate limiting
  */
-async function fetchKioskDynamicFields(kioskId: string): Promise<SuiDynamicFieldsResponse> {
-  const allDynamicFields: SuiDynamicField[] = [];
+async function fetchKioskDynamicFields(kioskId: string): Promise<DynamicFieldsResponse> {
+  const allDynamicFields: { objectId: string; name: string; }[] = [];
   let cursor: string | null = null;
   let paginationCount = 0;
   
@@ -496,7 +476,7 @@ async function fetchKioskDynamicFields(kioskId: string): Promise<SuiDynamicField
         parentId: kioskId,
         cursor: cursor || undefined,
         limit: CONFIG.MAX_DYNAMIC_FIELDS_PER_BATCH,
-      }) as SuiDynamicFieldsResponse;
+      }) as unknown as DynamicFieldsResponse;
     });
     
     // Rate limiting
@@ -520,7 +500,7 @@ async function fetchKioskDynamicFields(kioskId: string): Promise<SuiDynamicField
     totalFields: allDynamicFields.length 
   });
   
-  return { data: allDynamicFields };
+  return { data: allDynamicFields, hasNextPage: false };
 }
 
 /**
@@ -576,7 +556,7 @@ async function fetchAllOwnedObjects(walletAddress: string): Promise<SuiObjectDat
       break;
     }
     
-    const batch: { data: SuiObjectData[], nextCursor?: string | null } = await withRetry(async () => {
+    const batch: PaginatedObjectsResponse = await withRetry(async () => {
       return await suiClient.getOwnedObjects({
         owner: walletAddress,
         cursor: cursor || undefined,
@@ -585,10 +565,10 @@ async function fetchAllOwnedObjects(walletAddress: string): Promise<SuiObjectDat
           showType: true,
           showDisplay: true,
         }
-      });
+      }) as unknown as PaginatedObjectsResponse;
     });
     
-    const validObjects = batch.data.map(obj => obj.data).filter(Boolean) as SuiObjectData[];
+    const validObjects = batch.data.filter(Boolean) as SuiObjectData[];
     allObjects.push(...validObjects);
 
     cursor = batch.nextCursor;
@@ -628,7 +608,7 @@ function isNFTObject(obj: SuiObjectData): boolean {
                     type.includes('NFT') ||
                     type.includes('collectible');
   
-  const displayData = obj.data?.display?.data || obj.display?.data;
+  const displayData = obj.display?.data;
   const hasDisplayData = Boolean(displayData && (
     displayData.name || 
     displayData.image_url
@@ -642,16 +622,16 @@ function isNFTObject(obj: SuiObjectData): boolean {
  * Processes dynamic fields to extract NFT information using batching.
  */
 async function processDynamicFields(
-  dynamicFields: { data: { name: string }[] }, 
+  dynamicFields: DynamicFieldsResponse, 
   kioskId: string
 ): Promise<NFTInfo[]> {
   const itemIdsToFetch: string[] = [];
   const potentialNFTs: NFTInfo[] = [];
 
   for (const field of dynamicFields.data) {
-     // A common pattern is that the dynamic field's name is the object ID of the NFT
-    if (isValidObjectId(field.name)) {
-        itemIdsToFetch.push(field.name);
+     // A common pattern is that the dynamic field's objectId is the object ID of the NFT
+    if (isValidObjectId(field.objectId)) {
+        itemIdsToFetch.push(field.objectId);
     }
   }
 
@@ -701,7 +681,7 @@ export async function discoverUserKiosksAndNFTs(walletAddress: string): Promise<
       },
       kioskId: 'wallet',
     }));
-
+    
     const kiosks: KioskInfo[] = [{
         id: 'wallet',
         ownerCapId: 'wallet',
