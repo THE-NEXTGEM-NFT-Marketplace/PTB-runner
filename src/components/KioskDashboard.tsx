@@ -11,7 +11,6 @@ import { Link } from 'react-router-dom';
 import {
   KioskInfo,
   NFTInfo,
-  getUserKiosks,
   discoverUserKiosksAndNFTs,
 } from '@/lib/kiosk-discovery';
 import { WalletConnection } from './WalletConnection';
@@ -32,82 +31,55 @@ export function KioskDashboard() {
   const [debugMode, setDebugMode] = useState(false);
   const [debugLogs, setDebugLogs] = useState<string[]>([]);
   const [error, setError] = useState<string | null>(null);
+  const [refreshCounter, setRefreshCounter] = useState(0);
 
   const addDebugLog = useCallback((message: string) => {
     console.log(`[Kiosk Debug] ${message}`);
     setDebugLogs(prev => [`${new Date().toLocaleTimeString()}: ${message}`, ...prev.slice(0, 9)]);
   }, []);
 
-  const loadKioskData = useCallback(async () => {
-    if (!connected || !account?.address) {
-      addDebugLog('No wallet connection or address available');
-      return;
-    }
-    
-    setLoading(true);
-    setError(null);
-    addDebugLog(`Starting kiosk discovery for address: ${account.address}`);
-    
-    try {
-      // Test the client connection first
-      addDebugLog('Testing SuiClient connection...');
-      const { testSuiClientConnection, suiClient } = await import('@/lib/simple-sui-client');
-      const clientTest = await testSuiClientConnection(account.address);
-      
-      if (!clientTest.isWorking) {
-        throw new Error(`SuiClient test failed: ${clientTest.error}`);
-      }
-      
-      addDebugLog(`SuiClient test passed on ${clientTest.network}`);
-      
-      // Additional test: Try direct API call
-      addDebugLog('Testing direct API call...');
-      try {
-        const directTest = await suiClient.getOwnedObjects({
-          owner: account.address,
-          limit: 1,
-          options: { showContent: false, showType: false }
-        });
-        addDebugLog(`Direct API call successful, found ${directTest.data?.length || 0} objects`);
-      } catch (directError) {
-        addDebugLog(`Direct API call failed: ${directError instanceof Error ? directError.message : String(directError)}`);
-      }
-      
-      addDebugLog('Fetching user kiosks and NFTs...');
-      const { kiosks: userKiosks, nfts: userNFTs } = await discoverUserKiosksAndNFTs(account.address);
-      addDebugLog(`Found ${userKiosks.length} kiosks and ${userNFTs.length} NFTs`);
-      setKiosks(userKiosks);
-      setNFTs(userNFTs);
-      
-      if (userKiosks.length === 0) {
-        setError(`No kiosks found. Make sure you have kiosks on the current network (${currentNetwork}).`);
-      }
-    } catch (error: any) {
-      const errorMessage = error?.message || 'Unknown error occurred';
-      addDebugLog(`Error: ${errorMessage}`);
-      setError(errorMessage);
-      console.error('Error loading kiosk data:', error);
-    } finally {
-      setLoading(false);
-    }
-  }, [connected, account?.address, currentNetwork, addDebugLog]);
+  const handleRefresh = () => {
+    setRefreshCounter(count => count + 1);
+  };
 
   useEffect(() => {
-    // This single effect handles all data loading and state clearing logic.
-    // It runs when the user connects, disconnects, or changes the network.
+    const fetchData = async () => {
+      if (!connected || !account?.address) {
+        addDebugLog('No wallet connection or address available');
+        return;
+      }
+      
+      setLoading(true);
+      setError(null);
+      addDebugLog(`Starting kiosk discovery for address: ${account.address}`);
+      
+      try {
+        addDebugLog('Fetching user kiosks and NFTs...');
+        const { kiosks: userKiosks, nfts: userNFTs } = await discoverUserKiosksAndNFTs(account.address);
+        addDebugLog(`Found ${userKiosks.length} kiosks and ${userNFTs.length} NFTs`);
+        setKiosks(userKiosks);
+        setNFTs(userNFTs);
+        
+        if (userKiosks.length === 0) {
+          setError(`No kiosks found. Make sure you have kiosks on the current network (${currentNetwork}).`);
+        }
+      } catch (error: any) {
+        const errorMessage = error?.message || 'Unknown error occurred';
+        addDebugLog(`Error: ${errorMessage}`);
+        setError(errorMessage);
+        console.error('Error loading kiosk data:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
     switchNetwork(currentNetwork);
-    
-    // Always clear data on network change or disconnection to avoid showing stale data.
     setKiosks([]);
     setNFTs([]);
     setError(null);
+    fetchData();
+  }, [connected, account, currentNetwork, addDebugLog, refreshCounter]);
 
-    if (connected && account?.address) {
-      loadKioskData();
-    }
-  }, [connected, account?.address, currentNetwork, loadKioskData]); // We intentionally omit loadKioskData to break the loop
-
-  // Memoize expensive calculations
   const nftTypeCount = useMemo(() => {
     return new Set(nfts.map(nft => nft.type)).size;
   }, [nfts]);
@@ -160,7 +132,7 @@ export function KioskDashboard() {
             <Button
               variant="outline"
               size="sm"
-              onClick={loadKioskData}
+              onClick={handleRefresh}
               disabled={loading}
             >
               <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
@@ -347,7 +319,7 @@ export function KioskDashboard() {
           </TabsContent>
 
           <TabsContent value="transfer">
-            <TransferInterface nfts={nfts} kiosks={kiosks} onTransferComplete={loadKioskData} />
+            <TransferInterface nfts={nfts} kiosks={kiosks} onTransferComplete={handleRefresh} />
           </TabsContent>
           <TabsContent value="royalties">
             <RoyaltyManager />
