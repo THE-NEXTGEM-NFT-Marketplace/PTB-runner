@@ -111,7 +111,7 @@ export function RoyaltyManager() {
                 <div>
                   <p className="font-medium">{`Policy: ${policy.id.slice(0, 8)}...${policy.id.slice(-6)}`}</p>
                   <p className="text-sm text-muted-foreground">
-                    Balance: {parseInt(policy.balance, 10) / 1_000_000_000} SUI
+                    Balance: {Number(BigInt(policy.balance) / BigInt(1_000_000_000))} SUI
                   </p>
                 </div>
                 <Button size="sm" onClick={() => handleWithdraw(policy)} disabled={parseInt(policy.balance, 10) === 0}>

@@ -39,7 +39,7 @@ export async function getUserTransferPolicies(walletAddress: string): Promise<Tr
           
           if (policyObject.data?.content?.dataType === 'moveObject') {
             const policyFields = policyObject.data.content.fields as any;
-            const balance = policyFields.profits?.fields?.balance || '0';
+            const balance = policyFields.balance || '0';
             
             policyInfos.push({
               id: policyId,
