@@ -315,7 +315,7 @@ async function processKioskOwnerCaps(ownedObjects: SuiOwnedObjectsResponse): Pro
  */
 async function processKioskOwnerCap(obj: SuiObjectData): Promise<KioskInfo | null> {
   // Handle the actual API response structure: obj.data.content.fields
-  const actualObj = obj.data || obj;
+  const actualObj = obj;
   const objType = actualObj.type;
   const content = actualObj.content;
   
@@ -416,11 +416,11 @@ async function getKioskItemCount(kioskId: string): Promise<number> {
     return await suiClient.getObject({
       id: kioskId,
       options: { showContent: true }
-    }) as SuiObjectResponse;
+    });
   });
   
   // Handle the actual API response structure
-  const actualObj = kioskObject.data?.data || kioskObject.data;
+  const actualObj = kioskObject.data;
   const content = actualObj?.content;
   
   if (!content?.fields) {
@@ -588,7 +588,9 @@ async function fetchAllOwnedObjects(walletAddress: string): Promise<SuiObjectDat
       });
     });
     
-    allObjects.push(...batch.data);
+    const validObjects = batch.data.map(obj => obj.data).filter(Boolean) as SuiObjectData[];
+    allObjects.push(...validObjects);
+
     cursor = batch.nextCursor;
     paginationCount++;
     
