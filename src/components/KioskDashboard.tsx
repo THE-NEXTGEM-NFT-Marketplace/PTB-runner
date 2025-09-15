@@ -6,14 +6,12 @@ import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Wallet, Package, ArrowRightLeft, Plus, RefreshCw, FileText } from 'lucide-react';
+import { Wallet, Package, ArrowRightLeft, Plus, RefreshCw, FileText, HandCoins } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import {
   KioskInfo,
   NFTInfo,
   getUserKiosks,
-  getAllUserNFTs,
-  getAllUserNFTsEnhanced,
   discoverUserKiosksAndNFTs,
 } from '@/lib/kiosk-discovery';
 import { WalletConnection } from './WalletConnection';
@@ -22,6 +20,7 @@ import { TransferInterface } from './TransferInterface';
 import { NetworkSwitcher } from './NetworkSwitcher';
 import { useNetwork } from '@/contexts/NetworkContext';
 import { switchNetwork } from '@/lib/simple-sui-client';
+import { RoyaltyManager } from './RoyaltyManager';
 
 export function KioskDashboard() {
   const { connected, account } = useWallet();
@@ -220,6 +219,10 @@ export function KioskDashboard() {
               <ArrowRightLeft className="w-4 h-4 mr-2" />
               Transfer
             </TabsTrigger>
+            <TabsTrigger value="royalties">
+              <HandCoins className="w-4 h-4 mr-2" />
+              Royalties
+            </TabsTrigger>
           </TabsList>
 
           <TabsContent value="dashboard">
@@ -313,7 +316,7 @@ export function KioskDashboard() {
                                 Items: {kiosk.itemCount}
                               </p>
                             </div>
-                            <Badge variant="secondary">Active</Badge>
+                            <Badge>Active</Badge>
                           </div>
                         ))}
                       </div>
@@ -345,6 +348,9 @@ export function KioskDashboard() {
 
           <TabsContent value="transfer">
             <TransferInterface nfts={nfts} kiosks={kiosks} onTransferComplete={loadKioskData} />
+          </TabsContent>
+          <TabsContent value="royalties">
+            <RoyaltyManager />
           </TabsContent>
         </Tabs>
       </div>
