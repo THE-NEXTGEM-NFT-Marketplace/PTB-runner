@@ -105,7 +105,7 @@ export function KioskDashboard() {
     if (connected && account?.address) {
       loadKioskData();
     }
-  }, [connected, account?.address, currentNetwork]); // We intentionally omit loadKioskData to break the loop
+  }, [connected, account?.address, currentNetwork, loadKioskData]); // We intentionally omit loadKioskData to break the loop
 
   // Memoize expensive calculations
   const nftTypeCount = useMemo(() => {
