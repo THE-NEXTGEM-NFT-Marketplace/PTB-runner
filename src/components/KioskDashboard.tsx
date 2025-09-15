@@ -9,11 +9,9 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Wallet, Package, ArrowRightLeft, Plus, RefreshCw, FileText, HandCoins } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import {
-  getUserKiosks,
-  getAllUserNFTsEnhanced,
-  getKioskNFTs,
   KioskInfo,
-  NFTInfo
+  NFTInfo,
+  discoverUserKiosksAndNFTs
 } from '@/lib/kiosk-discovery';
 import { WalletConnection } from './WalletConnection';
 import { NFTGrid } from './NFTGrid';
@@ -44,77 +42,42 @@ export function KioskDashboard() {
     setRefreshCounter(count => count + 1);
   };
 
-  const loadKioskData = useCallback(async () => {
-    if (!connected || !account?.address) {
-      addDebugLog('No wallet connection or address available');
-      return;
-    }
-
-    setLoading(true);
-    setError(null);
-    setKiosks([]);
-    setNFTs([]);
-    addDebugLog(`Starting kiosk discovery for address: ${account.address}`);
-
-    try {
-      // Test the client connection first
-      addDebugLog('Testing SuiClient connection...');
-      const { testSuiClientConnection } = await import('@/lib/simple-sui-client');
-      const clientTest = await testSuiClientConnection(account.address);
-
-      if (!clientTest.isWorking) {
-        throw new Error(`SuiClient test failed: ${clientTest.error}`);
-      }
-
-      addDebugLog(`SuiClient test passed on ${clientTest.network}`);
-
-      // Step 1: Fetch and display kiosks first
-      addDebugLog('Fetching user kiosks...');
-      const userKiosks = await getUserKiosks(account.address);
-      addDebugLog(`Found ${userKiosks.length} kiosks`);
-      setKiosks(userKiosks);
-
-      if (userKiosks.length === 0) {
-        setError(`No kiosks found. Make sure you have kiosks on the current network (${currentNetwork}).`);
-        setLoading(false);
+  useEffect(() => {
+    const loadKioskData = async () => {
+      if (!connected || !account?.address) {
+        addDebugLog('No wallet connection or address available');
         return;
       }
 
-      // Step 2: Fetch NFTs for each kiosk incrementally
-      addDebugLog('Fetching NFTs for each kiosk...');
-      for (const kiosk of userKiosks) {
-        try {
-          addDebugLog(`Fetching NFTs for kiosk: ${kiosk.id}`);
-          const kioskNFTs = await getKioskNFTs(kiosk.id);
-          addDebugLog(`Found ${kioskNFTs.length} NFTs in kiosk ${kiosk.id}`);
-          if (kioskNFTs.length > 0) {
-            setNFTs(prevNFTs => [...prevNFTs, ...kioskNFTs]);
-          }
-        } catch (kioskNftsError) {
-          const errorMessage = kioskNftsError instanceof Error ? kioskNftsError.message : 'Unknown error';
-          addDebugLog(`Error fetching NFTs for kiosk ${kiosk.id}: ${errorMessage}`);
-          console.error(`Error fetching NFTs for kiosk ${kiosk.id}:`, kioskNftsError);
+      setLoading(true);
+      setError(null);
+      setKiosks([]);
+      setNFTs([]);
+      addDebugLog(`Starting kiosk discovery for address: ${account.address}`);
+
+      try {
+        addDebugLog('Fetching user kiosks and NFTs...');
+        const { kiosks: userKiosks, nfts: userNFTs } = await discoverUserKiosksAndNFTs(account.address);
+        addDebugLog(`Found ${userKiosks.length} kiosks and ${userNFTs.length} NFTs`);
+        setKiosks(userKiosks);
+        setNFTs(userNFTs);
+        
+        if (userKiosks.length === 0) {
+          setError(`No kiosks found. Make sure you have kiosks on the current network (${currentNetwork}).`);
         }
+      } catch (error: any) {
+        const errorMessage = error?.message || 'Unknown error occurred';
+        addDebugLog(`Error: ${errorMessage}`);
+        setError(errorMessage);
+        console.error('Error loading kiosk data:', error);
+      } finally {
+        setLoading(false);
       }
-      addDebugLog('Finished fetching all NFTs.');
-
-    } catch (error: any) {
-      const errorMessage = error?.message || 'Unknown error occurred';
-      addDebugLog(`Error: ${errorMessage}`);
-      setError(errorMessage);
-      console.error('Error loading kiosk data:', error);
-    } finally {
-      setLoading(false);
-    }
-  }, [connected, account?.address, currentNetwork, addDebugLog]);
-
-  useEffect(() => {
+    };
+    
     switchNetwork(currentNetwork);
-    setKiosks([]);
-    setNFTs([]);
-    setError(null);
     loadKioskData();
-  }, [currentNetwork, loadKioskData]);
+  }, [connected, account, currentNetwork, addDebugLog, refreshCounter]);
 
   const nftTypeCount = useMemo(() => {
     return new Set(nfts.map(nft => nft.type)).size;
