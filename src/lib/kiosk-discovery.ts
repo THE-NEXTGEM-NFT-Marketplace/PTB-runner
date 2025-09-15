@@ -686,99 +686,38 @@ export async function discoverUserKiosksAndNFTs(walletAddress: string): Promise<
     throw new ValidationError('Invalid wallet address format', 'walletAddress');
   }
 
-  log('info', 'Starting optimized kiosk and NFT discovery', { walletAddress });
+  log('info', 'Starting simplified object discovery', { walletAddress });
 
   try {
     const allOwnedObjects = await fetchAllOwnedObjects(walletAddress);
 
-    // 1. Discover all kiosks from KioskOwnerCaps
-    const kioskCaps = allOwnedObjects.filter(obj => 
-      (obj.type || '').includes(CONFIG.KIOSK_OWNER_CAP_TYPE)
-    );
+    const nfts = allOwnedObjects.map(obj => ({
+      id: obj.objectId,
+      type: obj.type || 'unknown',
+      display: {
+        name: obj.display?.data?.name || `Object ID: ${obj.objectId.slice(0, 10)}...`,
+        description: obj.display?.data?.description || `Type: ${obj.type}`,
+        image_url: obj.display?.data?.image_url
+      },
+      kioskId: 'wallet',
+    }));
 
-    const kioskPromises = kioskCaps.map(cap => processKioskOwnerCap(cap));
-    const kioskResults = await Promise.all(kioskPromises);
-    const kiosks = kioskResults.filter((k): k is KioskInfo => k !== null);
-    log('info', 'Kiosk discovery complete', { count: kiosks.length });
+    const kiosks: KioskInfo[] = [{
+        id: 'wallet',
+        ownerCapId: 'wallet',
+        itemCount: nfts.length
+    }];
+    
+    log('info', 'Simplified discovery complete', { objectsFound: nfts.length });
 
-    const allNFTs: NFTInfo[] = [];
-    const processedNftIds = new Set<string>();
-
-    // 2. Discover NFTs directly owned by the user
-    for (const obj of allOwnedObjects) {
-      if (isNFTObject(obj)) {
-        if (!processedNftIds.has(obj.objectId)) {
-          allNFTs.push({
-            id: obj.objectId,
-            type: obj.type || 'unknown',
-            display: obj.display?.data,
-            kioskId: 'direct_ownership',
-          });
-          processedNftIds.add(obj.objectId);
-        }
-      }
-    }
-    log('info', 'Directly owned NFT discovery complete', { count: allNFTs.length });
-
-    // 3. Discover NFTs within all kiosks using batching
-    if (kiosks.length > 0) {
-      const allKioskFieldsPromises = kiosks.map(kiosk => 
-        suiClient.getDynamicFields({ parentId: kiosk.id })
-      );
-      const allKioskFieldsResults = await Promise.all(allKioskFieldsPromises);
-      
-      const allNftIdsInKiosks = new Set<string>();
-      
-      for(const dynamicFields of allKioskFieldsResults) {
-          for (const field of dynamicFields.data) {
-              // The convention is often that the dynamic field's 'name' is the ID of the object.
-              if (isValidObjectId(field.name) && !processedNftIds.has(field.name)) {
-                  allNftIdsInKiosks.add(field.name);
-              }
-          }
-      }
-
-      const nftObjects = await batchFetchObjects(Array.from(allNftIdsInKiosks));
-      
-      // We need to map these back to their kiosk IDs. This is tricky without more info.
-      // For now, let's re-fetch dynamic fields and process them with the fetched objects.
-      // This is still more efficient than N getObject calls.
-      const kioskIdByNftId = new Map<string, string>();
-      for (let i = 0; i < kiosks.length; i++) {
-        const kiosk = kiosks[i];
-        const fields = allKioskFieldsResults[i];
-        for (const field of fields.data) {
-          if (isValidObjectId(field.name)) {
-            kioskIdByNftId.set(field.name, kiosk.id);
-          }
-        }
-      }
-      
-      for (const nftObj of nftObjects) {
-        if (isNFTObject(nftObj) && !processedNftIds.has(nftObj.objectId)) {
-           allNFTs.push({
-            id: nftObj.objectId,
-            type: nftObj.type || 'unknown',
-            display: nftObj.display?.data,
-            kioskId: kioskIdByNftId.get(nftObj.objectId) || 'unknown_kiosk',
-          });
-          processedNftIds.add(nftObj.objectId);
-        }
-      }
-    }
-
-    log('info', 'Kiosk NFT discovery complete', { count: allNFTs.length - processedNftIds.size });
-
-    log('info', 'Total unique NFTs found', { count: allNFTs.length });
-
-    return { kiosks, nfts: allNFTs };
+    return { kiosks, nfts };
 
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-    log('error', 'Optimized discovery failed', { walletAddress, error: errorMessage });
+    log('error', 'Simplified discovery failed', { walletAddress, error: errorMessage });
     throw new KioskDiscoveryError(
-      `Optimized kiosk and NFT discovery failed: ${errorMessage}`,
-      'OPTIMIZED_DISCOVERY_FAILED',
+      `Simplified kiosk and NFT discovery failed: ${errorMessage}`,
+      'SIMPLIFIED_DISCOVERY_FAILED',
       { walletAddress }
     );
   }
