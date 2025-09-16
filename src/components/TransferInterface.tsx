@@ -428,6 +428,11 @@ export function TransferInterface({ nfts, kiosks, onTransferComplete }: Transfer
               <div>
                 <Label className="text-base font-medium mb-3 block">Select NFTs (one type) for Bulk Transfer</Label>
                 <div className="text-xs text-muted-foreground mb-2">Allowed type suffix: <span className="font-mono break-all">{ALLOWED_NFT_SUFFIX}</span></div>
+                <div className="flex flex-col sm:flex-row gap-2 mb-2">
+                  <Input placeholder="Enter Kiosk ID to load from..." value={kioskLoadId} onChange={(e) => setKioskLoadId(e.target.value)} />
+                  <Button type="button" variant="outline" onClick={handleLoadFromKiosk} disabled={executing}>Load from Kiosk</Button>
+                  <Button type="button" variant="ghost" onClick={handleResetSource}>Reset</Button>
+                </div>
                 <Card className="bg-muted/20 border-border/30">
                   <CardContent className="p-4">
                     <NFTGrid 

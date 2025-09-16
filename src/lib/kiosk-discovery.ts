@@ -46,6 +46,7 @@ const CONFIG = {
   KIOSK_OWNER_CAP_TYPE: '0x2::kiosk::KioskOwnerCap',
   RETRY_ATTEMPTS: 3,
   RETRY_DELAY: 1000, // 1 second between retries
+  CONCURRENCY: 10,
 } as const;
 
 // Sui API Response Types - REMOVED, now using official types from @mysten/sui/client
@@ -657,50 +658,66 @@ async function processDynamicFields(
   const potentialNFTs: NFTInfo[] = [];
   const seen = new Set<string>();
 
-  // Resolve actual item object IDs from dynamic fields
-  for (const field of dynamicFields.data) {
-    try {
-      const dfObj = await withRetry(async () => {
-        return await suiClient.getDynamicFieldObject({
-          parentId: kioskId,
-          name: (field as any).name,
-        });
-      });
-
-      const data: any = (dfObj as any)?.data;
-      let candidateId: string | undefined;
-
-      // Try common shapes
-      if (data?.objectId && isValidObjectId(data.objectId)) {
-        candidateId = data.objectId;
-      } else if (data?.content?.fields?.id && typeof data.content.fields.id === 'string' && isValidObjectId(data.content.fields.id)) {
-        candidateId = data.content.fields.id;
-      } else if (data?.content?.fields?.value && typeof data.content.fields.value === 'string' && isValidObjectId(data.content.fields.value)) {
-        candidateId = data.content.fields.value as string;
-      } else if (data?.content?.fields?.item?.fields?.id && isValidObjectId(data.content.fields.item.fields.id)) {
-        candidateId = data.content.fields.item.fields.id as string;
-      }
-
-      if (candidateId) {
-        if (!seen.has(candidateId)) {
-          seen.add(candidateId);
-          itemIdsToFetch.push(candidateId);
-        }
-      } else {
-        // Fallback: deep scan for any object IDs in the dynamic object content
-        const candidates = new Set<string>();
-        collectCandidateObjectIds(data?.content?.fields, candidates);
-        for (const cid of candidates) {
-          if (cid !== kioskId && !seen.has(cid)) {
-            seen.add(cid);
-            itemIdsToFetch.push(cid);
-          }
-        }
-      }
-    } catch (e) {
-      log('warn', 'Failed to resolve dynamic field value', { kioskId, field: field.objectId });
+  // First pass: extract directly from dynamic field name (kiosk often encodes item id in the key)
+  for (const field of (dynamicFields.data as any[])) {
+    const key = (field as any).name;
+    const keyId = key?.value?.id ?? key?.fields?.id;
+    if (typeof keyId === 'string' && isValidObjectId(keyId) && !seen.has(keyId)) {
+      seen.add(keyId);
+      itemIdsToFetch.push(keyId);
     }
   }
+
+  // Second pass: fetch dynamic field objects in parallel (with concurrency) to resolve nested ids
+  const queue = [...(dynamicFields.data as any[])];
+  const concurrent = Math.max(1, CONFIG.CONCURRENCY);
+  const workers: Promise<void>[] = [];
+  for (let w = 0; w < concurrent; w++) {
+    workers.push((async () => {
+      while (queue.length) {
+        const field = queue.shift();
+        if (!field) break;
+        try {
+          const dfObj = await withRetry(async () => {
+            return await suiClient.getDynamicFieldObject({
+              parentId: kioskId,
+              name: (field as any).name,
+            });
+          });
+          const data: any = (dfObj as any)?.data;
+          let candidateId: string | undefined;
+          if (data?.objectId && isValidObjectId(data.objectId)) {
+            candidateId = data.objectId;
+          } else if (data?.content?.fields?.id && typeof data.content.fields.id === 'string' && isValidObjectId(data.content.fields.id)) {
+            candidateId = data.content.fields.id;
+          } else if (data?.content?.fields?.value && typeof data.content.fields.value === 'string' && isValidObjectId(data.content.fields.value)) {
+            candidateId = data.content.fields.value as string;
+          } else if (data?.content?.fields?.item?.fields?.id && isValidObjectId(data.content.fields.item.fields.id)) {
+            candidateId = data.content.fields.item.fields.id as string;
+          } else if (data?.content?.fields?.item_id && typeof data.content.fields.item_id === 'string' && isValidObjectId(data.content.fields.item_id)) {
+            candidateId = data.content.fields.item_id as string;
+          }
+
+          if (candidateId && !seen.has(candidateId)) {
+            seen.add(candidateId);
+            itemIdsToFetch.push(candidateId);
+          } else {
+            const candidates = new Set<string>();
+            collectCandidateObjectIds(data?.content?.fields, candidates);
+            for (const cid of candidates) {
+              if (cid !== kioskId && !seen.has(cid)) {
+                seen.add(cid);
+                itemIdsToFetch.push(cid);
+              }
+            }
+          }
+        } catch (e) {
+          log('warn', 'Failed to resolve dynamic field value', { kioskId, field: (field as any).objectId });
+        }
+      }
+    })());
+  }
+  await Promise.all(workers);
 
   if (itemIdsToFetch.length === 0) {
     return [];
