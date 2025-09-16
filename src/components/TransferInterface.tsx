@@ -371,11 +371,16 @@ export function TransferInterface({ nfts, kiosks, onTransferComplete }: Transfer
                 <Card className="bg-muted/20 border-border/30">
                   <CardContent className="p-4">
                     <NFTGrid 
-                      nfts={nfts} 
+                      nfts={showOnlyAllowedType ? nfts.filter(n => isAllowedNFTType(n.type)) : nfts}
                       loading={false} 
                       selectable={true}
                       onSelectionChange={setSelectedNFTs}
                     />
+                    <div className="mt-3 flex justify-end">
+                      <Button type="button" variant="outline" size="sm" onClick={() => setShowOnlyAllowedType(!showOnlyAllowedType)}>
+                        {showOnlyAllowedType ? 'Show All Types' : 'Filter to SuiLFG_NFT'}
+                      </Button>
+                    </div>
                   </CardContent>
                 </Card>
                 {selectedNFTs.length > 0 && (

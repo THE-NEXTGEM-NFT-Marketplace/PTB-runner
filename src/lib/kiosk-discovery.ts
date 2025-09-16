@@ -635,10 +635,35 @@ async function processDynamicFields(
   const itemIdsToFetch: string[] = [];
   const potentialNFTs: NFTInfo[] = [];
 
+  // Resolve actual item object IDs from dynamic fields
   for (const field of dynamicFields.data) {
-     // A common pattern is that the dynamic field's objectId is the object ID of the NFT
-    if (isValidObjectId(field.objectId)) {
-        itemIdsToFetch.push(field.objectId);
+    try {
+      const dfObj = await withRetry(async () => {
+        return await suiClient.getDynamicFieldObject({
+          parentId: kioskId,
+          name: field.name as any,
+        });
+      });
+
+      const data: any = (dfObj as any)?.data;
+      let candidateId: string | undefined;
+
+      // Try common shapes
+      if (data?.objectId && isValidObjectId(data.objectId)) {
+        candidateId = data.objectId;
+      } else if (data?.content?.fields?.id && typeof data.content.fields.id === 'string' && isValidObjectId(data.content.fields.id)) {
+        candidateId = data.content.fields.id;
+      } else if (data?.content?.fields?.value && typeof data.content.fields.value === 'string' && isValidObjectId(data.content.fields.value)) {
+        candidateId = data.content.fields.value as string;
+      } else if (data?.content?.fields?.item?.fields?.id && isValidObjectId(data.content.fields.item.fields.id)) {
+        candidateId = data.content.fields.item.fields.id as string;
+      }
+
+      if (candidateId) {
+        itemIdsToFetch.push(candidateId);
+      }
+    } catch (e) {
+      log('warn', 'Failed to resolve dynamic field value', { kioskId, field: field.objectId });
     }
   }
 
@@ -650,15 +675,15 @@ async function processDynamicFields(
 
   for (const obj of fetchedObjects) {
     if (isNFTObject(obj)) {
-        potentialNFTs.push({
-            id: obj.objectId,
-            type: obj.type || 'unknown',
-            display: obj.display?.data,
-            kioskId,
-        });
+      potentialNFTs.push({
+        id: obj.objectId,
+        type: obj.type || 'unknown',
+        display: obj.display?.data,
+        kioskId,
+      });
     }
   }
-  
+
   return potentialNFTs;
 }
 
