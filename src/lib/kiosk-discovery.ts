@@ -725,53 +725,72 @@ export async function discoverUserKiosksAndNFTsProgressive(
 	log('info', 'Starting progressive discovery', { walletAddress });
 
 	const collectedNFTs: NFTInfo[] = [];
-	let reportedKiosks = false;
-
-	let cursor: string | null | undefined = null;
-	let paginationCount = 0;
+	let kiosksResult: KioskInfo[] = [];
 
 	try {
-		do {
-			if (paginationCount >= CONFIG.MAX_PAGINATION_LIMIT) break;
-			const batch: PaginatedObjectsResponse = await withRetry(async () => {
-				return await suiClient.getOwnedObjects({
-					owner: walletAddress,
-					cursor: cursor || undefined,
-					options: { showContent: true, showType: true, showDisplay: true },
-				}) as unknown as PaginatedObjectsResponse;
-			});
+		// Start streaming wallet-owned objects immediately
+		const streamWalletOwned = (async () => {
+			let cursor: string | null | undefined = null;
+			let paginationCount = 0;
+			do {
+				if (paginationCount >= CONFIG.MAX_PAGINATION_LIMIT) break;
+				const batch: PaginatedObjectsResponse = await withRetry(async () => {
+					return await suiClient.getOwnedObjects({
+						owner: walletAddress,
+						cursor: cursor || undefined,
+						options: { showContent: true, showType: true, showDisplay: true },
+					}) as unknown as PaginatedObjectsResponse;
+				});
 
-			const validObjects = (batch.data as any[])
-				.map((entry: any) => entry?.data)
-				.filter(Boolean) as SuiObjectData[];
-			const nfts = validObjects.map(obj => ({
-				id: (obj as any).objectId,
-				type: (obj as any).type || 'unknown',
-				display: {
-					name: (obj as any).display?.data?.name || `Object ID: ${String((obj as any).objectId).slice(0, 10)}...`,
-					description: (obj as any).display?.data?.description || `Type: ${(obj as any).type}`,
-					image_url: (obj as any).display?.data?.image_url,
-				},
-				kioskId: 'wallet',
-			})) as NFTInfo[];
+				const validObjects = (batch.data as any[])
+					.map((entry: any) => entry?.data)
+					.filter(Boolean) as SuiObjectData[];
+				const nfts = validObjects.map(obj => ({
+					id: (obj as any).objectId,
+					type: (obj as any).type || 'unknown',
+					display: {
+						name: (obj as any).display?.data?.name || `Object ID: ${String((obj as any).objectId).slice(0, 10)}...`,
+						description: (obj as any).display?.data?.description || `Type: ${(obj as any).type}`,
+						image_url: (obj as any).display?.data?.image_url,
+					},
+					kioskId: 'wallet',
+				})) as NFTInfo[];
 
-			if (!reportedKiosks) {
-				reportedKiosks = true;
-				onProgress({ kiosks: [{ id: 'wallet', ownerCapId: 'wallet', itemCount: 0 }] });
+				if (nfts.length > 0) {
+					collectedNFTs.push(...nfts);
+					onProgress({ nfts });
+				}
+
+				cursor = (batch as any).nextCursor;
+				paginationCount++;
+			} while (cursor);
+		})();
+
+		// In parallel, discover kiosks and stream kiosk NFTs
+		const streamKioskContents = (async () => {
+			kiosksResult = await getUserKiosks(walletAddress);
+			if (kiosksResult.length > 0) {
+				onProgress({ kiosks: kiosksResult });
 			}
-
-			if (nfts.length > 0) {
-				collectedNFTs.push(...nfts);
-				onProgress({ nfts });
+			for (const kiosk of kiosksResult) {
+				try {
+					const dynamicFields = await fetchKioskDynamicFields(kiosk.id);
+					const kioskNfts = await processDynamicFields(dynamicFields, kiosk.id);
+					if (kioskNfts.length > 0) {
+						collectedNFTs.push(...kioskNfts);
+						onProgress({ nfts: kioskNfts });
+					}
+				} catch (e) {
+					log('warn', 'Failed to stream kiosk contents', { kioskId: kiosk.id });
+				}
 			}
+		})();
 
-			cursor = batch.nextCursor;
-			paginationCount++;
-		} while (cursor);
+		await Promise.all([streamWalletOwned, streamKioskContents]);
 
 		// Final callback
-		onProgress({ done: true, kiosks: [{ id: 'wallet', ownerCapId: 'wallet', itemCount: collectedNFTs.length }] });
-		return { kiosks: [{ id: 'wallet', ownerCapId: 'wallet', itemCount: collectedNFTs.length }], nfts: collectedNFTs };
+		onProgress({ done: true, kiosks: kiosksResult });
+		return { kiosks: kiosksResult, nfts: collectedNFTs };
 	} catch (error) {
 		const errorMessage = error instanceof Error ? error.message : 'Unknown error';
 		log('error', 'Progressive discovery failed', { walletAddress, error: errorMessage });
