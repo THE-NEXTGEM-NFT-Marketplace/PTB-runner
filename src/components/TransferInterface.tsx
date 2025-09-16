@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useWallet } from '@suiet/wallet-kit';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -43,6 +43,7 @@ export function TransferInterface({ nfts, kiosks, onTransferComplete }: Transfer
   const [customPtb, setCustomPtb] = useState('');
   const [executing, setExecuting] = useState(false);
   const [recipientKiosks, setRecipientKiosks] = useState<{ id: string; ownerCapId: string }[] | null>(null);
+  const [bulkAmount, setBulkAmount] = useState('');
 
   useEffect(() => {
     setSourceNFTs(nfts);
@@ -82,6 +83,10 @@ export function TransferInterface({ nfts, kiosks, onTransferComplete }: Transfer
   }, [recipientAddress]);
 
   // Removed direct address transfer (kiosk-only policy)
+
+  const filteredSourceNFTs = useMemo(() => {
+    return showOnlyAllowedType ? sourceNFTs.filter(n => isAllowedNFTType(n.type)) : sourceNFTs;
+  }, [showOnlyAllowedType, sourceNFTs]);
 
   const handleKioskTransfer = async () => {
     if (!selectedNFTs.length || !recipientInfo) {
@@ -136,11 +141,22 @@ export function TransferInterface({ nfts, kiosks, onTransferComplete }: Transfer
         description: "Select NFTs and enter comma-separated recipient addresses",
         variant: "destructive"
       });
-      return;
+      // Auto-select flow: if none selected but we have amount and kiosk-loaded NFTs, try selecting automatically
+      // We'll continue validation after attempting auto-select
     }
 
     // Require that all selected NFTs are same type and at least equal to recipient count
-    const uniqueTypes = Array.from(new Set(selectedNFTs.map(n => n.type)));
+    let workingSelection = selectedNFTs;
+    const addresses = parseWalletAddresses(bulkAddresses);
+    const amountNum = Number(bulkAmount || addresses.length);
+    if (workingSelection.length === 0 && filteredSourceNFTs.length > 0) {
+      const pool = filteredSourceNFTs.filter(n => isAllowedNFTType(n.type));
+      const autoCount = Math.min(amountNum || addresses.length, addresses.length, pool.length);
+      workingSelection = pool.slice(0, autoCount);
+      setSelectedNFTs(workingSelection);
+    }
+
+    const uniqueTypes = Array.from(new Set(workingSelection.map(n => n.type)));
     if (uniqueTypes.length !== 1) {
       toast({
         title: "Single Type Required",
@@ -173,17 +189,16 @@ export function TransferInterface({ nfts, kiosks, onTransferComplete }: Transfer
     setExecuting(true);
     try {
       const nftType = selectedType;
-      const addresses = parseWalletAddresses(bulkAddresses);
       if (addresses.length === 0) {
         throw new Error('No valid recipient addresses');
       }
 
-      if (selectedNFTs.length < addresses.length) {
-        throw new Error(`You selected ${selectedNFTs.length} NFTs but provided ${addresses.length} addresses`);
+      if (workingSelection.length < addresses.length) {
+        throw new Error(`You selected ${workingSelection.length} NFTs but provided ${addresses.length} addresses`);
       }
 
       const recipients = await prepareBulkTransferRecipients(addresses as string[]);
-      const nftIds = selectedNFTs.map(n => n.id).slice(0, recipients.length) as string[];
+      const nftIds = workingSelection.map(n => n.id).slice(0, recipients.length) as string[];
       const senderAddress: string = account?.address ? account.address : '';
       if (!senderAddress) {
         throw new Error('Wallet address unavailable');
@@ -433,10 +448,13 @@ export function TransferInterface({ nfts, kiosks, onTransferComplete }: Transfer
                   <Button type="button" variant="outline" onClick={handleLoadFromKiosk} disabled={executing}>Load from Kiosk</Button>
                   <Button type="button" variant="ghost" onClick={handleResetSource}>Reset</Button>
                 </div>
+                <div className="flex flex-col sm:flex-row gap-2 mb-2">
+                  <Input placeholder="Amount (optional)" value={bulkAmount} onChange={(e) => setBulkAmount(e.target.value)} />
+                </div>
                 <Card className="bg-muted/20 border-border/30">
                   <CardContent className="p-4">
                     <NFTGrid 
-                      nfts={showOnlyAllowedType ? sourceNFTs.filter(n => isAllowedNFTType(n.type)) : sourceNFTs}
+                      nfts={filteredSourceNFTs}
                       loading={false} 
                       selectable={true}
                       onSelectionChange={setSelectedNFTs}
