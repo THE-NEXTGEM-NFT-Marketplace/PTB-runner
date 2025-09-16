@@ -17,7 +17,7 @@ import { parseWalletAddresses, prepareBulkTransferRecipients, createBulkTransfer
 import { Transaction } from '@mysten/sui/transactions';
 import { useToast } from '@/hooks/use-toast';
 import { discoverRecipient, createSmartKioskTransferTransaction, RecipientInfo } from '@/lib/smart-kiosk';
-import { getUserKiosks } from '@/lib/kiosk-discovery';
+import { getUserKiosks, getKioskNFTs } from '@/lib/kiosk-discovery';
 
 // Allowed NFT type for bulk transfers (match by suffix to avoid address normalization issues)
 const ALLOWED_NFT_SUFFIX = '::governance_nfts::SuiLFG_NFT';
@@ -33,6 +33,8 @@ export function TransferInterface({ nfts, kiosks, onTransferComplete }: Transfer
   const { signAndExecuteTransaction, account } = useWallet();
   const { toast } = useToast();
   const [selectedNFTs, setSelectedNFTs] = useState<NFTInfo[]>([]);
+  const [sourceNFTs, setSourceNFTs] = useState<NFTInfo[]>(nfts);
+  const [kioskLoadId, setKioskLoadId] = useState('');
   const [showOnlyAllowedType, setShowOnlyAllowedType] = useState(false);
   const [recipientAddress, setRecipientAddress] = useState('');
   const [bulkAddresses, setBulkAddresses] = useState('');
@@ -41,6 +43,10 @@ export function TransferInterface({ nfts, kiosks, onTransferComplete }: Transfer
   const [customPtb, setCustomPtb] = useState('');
   const [executing, setExecuting] = useState(false);
   const [recipientKiosks, setRecipientKiosks] = useState<{ id: string; ownerCapId: string }[] | null>(null);
+
+  useEffect(() => {
+    setSourceNFTs(nfts);
+  }, [nfts]);
 
   // Auto-discover recipient when address changes
   useEffect(() => {
@@ -278,6 +284,32 @@ export function TransferInterface({ nfts, kiosks, onTransferComplete }: Transfer
     }
   };
 
+  const handleLoadFromKiosk = async () => {
+    if (!kioskLoadId || kioskLoadId.length < 10) {
+      toast({ title: 'Invalid Kiosk ID', description: 'Enter a valid kiosk object ID', variant: 'destructive' });
+      return;
+    }
+    setExecuting(true);
+    try {
+      const loaded = await getKioskNFTs(kioskLoadId);
+      if (!loaded || loaded.length === 0) {
+        toast({ title: 'No Items Found', description: 'This kiosk appears empty or inaccessible' });
+      }
+      setSourceNFTs(loaded);
+      setSelectedNFTs([]);
+    } catch (e: any) {
+      toast({ title: 'Load Failed', description: e?.message || 'Could not load kiosk contents', variant: 'destructive' });
+    } finally {
+      setExecuting(false);
+    }
+  };
+
+  const handleResetSource = () => {
+    setSourceNFTs(nfts);
+    setKioskLoadId('');
+    setSelectedNFTs([]);
+  };
+
   return (
     <div className="space-y-6">
       <Card className="bg-gradient-card border-border/50">
@@ -302,10 +334,15 @@ export function TransferInterface({ nfts, kiosks, onTransferComplete }: Transfer
               {/* NFT Selection */}
               <div>
                 <Label className="text-base font-medium mb-3 block">Select NFTs for Kiosk Transfer</Label>
+                <div className="flex flex-col sm:flex-row gap-2 mb-2">
+                  <Input placeholder="Enter Kiosk ID to load from..." value={kioskLoadId} onChange={(e) => setKioskLoadId(e.target.value)} />
+                  <Button type="button" variant="outline" onClick={handleLoadFromKiosk} disabled={executing}>Load from Kiosk</Button>
+                  <Button type="button" variant="ghost" onClick={handleResetSource}>Reset</Button>
+                </div>
                 <Card className="bg-muted/20 border-border/30">
                   <CardContent className="p-4">
                     <NFTGrid 
-                      nfts={showOnlyAllowedType ? nfts.filter(n => isAllowedNFTType(n.type)) : nfts}
+                      nfts={showOnlyAllowedType ? sourceNFTs.filter(n => isAllowedNFTType(n.type)) : sourceNFTs}
                       loading={false} 
                       selectable={true}
                       onSelectionChange={setSelectedNFTs}
@@ -394,7 +431,7 @@ export function TransferInterface({ nfts, kiosks, onTransferComplete }: Transfer
                 <Card className="bg-muted/20 border-border/30">
                   <CardContent className="p-4">
                     <NFTGrid 
-                      nfts={showOnlyAllowedType ? nfts.filter(n => isAllowedNFTType(n.type)) : nfts}
+                      nfts={showOnlyAllowedType ? sourceNFTs.filter(n => isAllowedNFTType(n.type)) : sourceNFTs}
                       loading={false} 
                       selectable={true}
                       onSelectionChange={setSelectedNFTs}
