@@ -171,7 +171,7 @@ async function fetchKioskOwnerCaps(walletAddress: string): Promise<PaginatedObje
     // Strategy 1: Try specific KioskOwnerCap filter
     log('debug', 'Attempting specific KioskOwnerCap filter');
     
-    const specificResponse = await withRetry(async () => {
+    const rawResponse = await withRetry(async () => {
       return await suiClient.getOwnedObjects({
         owner: walletAddress,
         filter: {
@@ -181,14 +181,18 @@ async function fetchKioskOwnerCaps(walletAddress: string): Promise<PaginatedObje
           showContent: true,
           showType: true,
         }
-      }) as unknown as PaginatedObjectsResponse;
+      });
     });
-    
+
+    const unwrapped = (rawResponse.data as any[])
+      .map((entry: any) => entry?.data)
+      .filter(Boolean) as SuiObjectData[];
+
     log('info', 'Specific filter successful', { 
-      objectsFound: specificResponse.data.length 
+      objectsFound: unwrapped.length 
     });
-    
-    return specificResponse;
+
+    return { data: unwrapped, nextCursor: rawResponse.nextCursor, hasNextPage: rawResponse.hasNextPage } as unknown as PaginatedObjectsResponse;
   } catch (specificError) {
     log('warn', 'Specific filter failed, trying broader search', { 
       error: specificError instanceof Error ? specificError.message : String(specificError)
@@ -221,11 +225,15 @@ async function fetchAllObjectsWithFilter(walletAddress: string): Promise<Paginat
           showContent: true,
           showType: true,
         }
-      }) as unknown as PaginatedObjectsResponse;
+      });
     });
-    
-    allObjects.push(...batch.data);
-    cursor = batch.nextCursor;
+
+    const unwrapped = (batch.data as any[])
+      .map((entry: any) => entry?.data)
+      .filter(Boolean) as SuiObjectData[];
+
+    allObjects.push(...unwrapped);
+    cursor = batch.nextCursor as any;
     paginationCount++;
     
     // Rate limiting
@@ -234,7 +242,7 @@ async function fetchAllObjectsWithFilter(walletAddress: string): Promise<Paginat
     }
     
     log('debug', 'Fetched batch of objects', { 
-      batchSize: batch.data.length, 
+      batchSize: unwrapped.length, 
       totalSoFar: allObjects.length 
     });
   } while (cursor);
@@ -268,7 +276,7 @@ async function fetchAllObjectsWithFilter(walletAddress: string): Promise<Paginat
     }))
   });
   
-  return { data: filteredObjects, hasNextPage: false };
+  return { data: filteredObjects, hasNextPage: false } as unknown as PaginatedObjectsResponse;
 }
 
 /**
