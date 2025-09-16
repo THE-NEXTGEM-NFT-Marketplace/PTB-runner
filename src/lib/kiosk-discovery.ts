@@ -486,7 +486,7 @@ async function fetchKioskDynamicFields(kioskId: string): Promise<DynamicFieldsRe
         parentId: kioskId,
         cursor: cursor || undefined,
         limit: CONFIG.MAX_DYNAMIC_FIELDS_PER_BATCH,
-      }) as unknown as DynamicFieldsResponse;
+      });
     });
     
     // Rate limiting
@@ -494,8 +494,8 @@ async function fetchKioskDynamicFields(kioskId: string): Promise<DynamicFieldsRe
       await delay(CONFIG.RATE_LIMIT_DELAY);
     }
     
-    allDynamicFields.push(...dynamicFields.data);
-    cursor = dynamicFields.nextCursor;
+    allDynamicFields.push(...(dynamicFields.data as any[]));
+    cursor = (dynamicFields as any).nextCursor;
     paginationCount++;
     
     log('debug', 'Fetched batch of dynamic fields', { 
@@ -533,6 +533,7 @@ async function batchFetchObjects(objectIds: string[]): Promise<SuiObjectData[]> 
           showContent: true,
           showType: true,
           showDisplay: true,
+          showOwner: true,
         },
       });
     });
@@ -611,7 +612,8 @@ function isNFTObject(obj: SuiObjectData): boolean {
   const type = obj.type;
   if (!type) return false;
 
-  const hasNFTType = type.includes('nft') || 
+  const hasNFTType = type.includes('::governance_nfts::SuiLFG_NFT') ||
+                    type.includes('nft') ||
                     type.includes('NFT') ||
                     type.includes('collectible');
   
@@ -641,7 +643,7 @@ async function processDynamicFields(
       const dfObj = await withRetry(async () => {
         return await suiClient.getDynamicFieldObject({
           parentId: kioskId,
-          name: field.name as any,
+          name: (field as any).name,
         });
       });
 
