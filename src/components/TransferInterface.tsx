@@ -17,6 +17,7 @@ import { parseWalletAddresses, prepareBulkTransferRecipients, createBulkTransfer
 import { Transaction } from '@mysten/sui/transactions';
 import { useToast } from '@/hooks/use-toast';
 import { discoverRecipient, createSmartKioskTransferTransaction, RecipientInfo } from '@/lib/smart-kiosk';
+import { getUserKiosks } from '@/lib/kiosk-discovery';
 
 // Allowed NFT type for bulk transfers (match by suffix to avoid address normalization issues)
 const ALLOWED_NFT_SUFFIX = '::governance_nfts::SuiLFG_NFT';
@@ -39,12 +40,14 @@ export function TransferInterface({ nfts, kiosks, onTransferComplete }: Transfer
   const [loadingRecipient, setLoadingRecipient] = useState(false);
   const [customPtb, setCustomPtb] = useState('');
   const [executing, setExecuting] = useState(false);
+  const [recipientKiosks, setRecipientKiosks] = useState<{ id: string; ownerCapId: string }[] | null>(null);
 
   // Auto-discover recipient when address changes
   useEffect(() => {
     const discoverRecipientInfo = async () => {
       if (!recipientAddress || recipientAddress.length < 10) {
         setRecipientInfo(null);
+        setRecipientKiosks(null);
         return;
       }
 
@@ -52,9 +55,17 @@ export function TransferInterface({ nfts, kiosks, onTransferComplete }: Transfer
       try {
         const info = await discoverRecipient(recipientAddress);
         setRecipientInfo(info);
+        // mirror Mint lookup logic here to show kiosks for transfer
+        try {
+          const kiosks = await getUserKiosks(recipientAddress);
+          setRecipientKiosks(kiosks.map(k => ({ id: k.id, ownerCapId: k.ownerCapId })));
+        } catch {
+          setRecipientKiosks([]);
+        }
       } catch (error) {
         console.error('Failed to discover recipient:', error);
         setRecipientInfo(null);
+        setRecipientKiosks(null);
       } finally {
         setLoadingRecipient(false);
       }
@@ -339,6 +350,18 @@ export function TransferInterface({ nfts, kiosks, onTransferComplete }: Transfer
                     ) : (
                       <div className="text-sm text-warning">
                         ⚠ No kiosk found - New kiosk will be created automatically
+                      </div>
+                    )}
+                    {recipientKiosks && recipientKiosks.length > 0 && (
+                      <div className="mt-2 space-y-1">
+                        {recipientKiosks.map((k, idx) => (
+                          <div key={k.id + idx} className="flex items-center gap-2 text-xs">
+                            <span className="text-muted-foreground">Kiosk:</span>
+                            <span className="font-mono break-all">{k.id}</span>
+                            <span className="text-muted-foreground ml-2">Cap:</span>
+                            <span className="font-mono break-all">{k.ownerCapId}</span>
+                          </div>
+                        ))}
                       </div>
                     )}
                   </div>

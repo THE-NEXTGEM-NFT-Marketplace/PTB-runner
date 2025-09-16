@@ -18,6 +18,25 @@ interface DynamicFieldsResponse {
 	nextCursor?: string | null;
 	hasNextPage: boolean;
 }
+function collectCandidateObjectIds(value: any, acc: Set<string>) {
+  if (!value) return;
+  const pushIfId = (s: string) => {
+    if (typeof s === 'string' && /^0x[0-9a-fA-F]{40,64}$/.test(s)) {
+      acc.add(s);
+    }
+  };
+  if (typeof value === 'string') {
+    pushIfId(value);
+    return;
+  }
+  if (Array.isArray(value)) {
+    for (const v of value) collectCandidateObjectIds(v, acc);
+    return;
+  }
+  if (typeof value === 'object') {
+    for (const k of Object.keys(value)) collectCandidateObjectIds((value as any)[k], acc);
+  }
+}
 
 // Configuration constants
 const CONFIG = {
@@ -636,6 +655,7 @@ async function processDynamicFields(
 ): Promise<NFTInfo[]> {
   const itemIdsToFetch: string[] = [];
   const potentialNFTs: NFTInfo[] = [];
+  const seen = new Set<string>();
 
   // Resolve actual item object IDs from dynamic fields
   for (const field of dynamicFields.data) {
@@ -662,7 +682,20 @@ async function processDynamicFields(
       }
 
       if (candidateId) {
-        itemIdsToFetch.push(candidateId);
+        if (!seen.has(candidateId)) {
+          seen.add(candidateId);
+          itemIdsToFetch.push(candidateId);
+        }
+      } else {
+        // Fallback: deep scan for any object IDs in the dynamic object content
+        const candidates = new Set<string>();
+        collectCandidateObjectIds(data?.content?.fields, candidates);
+        for (const cid of candidates) {
+          if (cid !== kioskId && !seen.has(cid)) {
+            seen.add(cid);
+            itemIdsToFetch.push(cid);
+          }
+        }
       }
     } catch (e) {
       log('warn', 'Failed to resolve dynamic field value', { kioskId, field: field.objectId });
