@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Wallet, Package, ArrowRightLeft, Plus, RefreshCw, FileText, HandCoins } from 'lucide-react';
+import { Wallet, Package, ArrowRightLeft, Plus, RefreshCw, FileText, HandCoins, Wand2 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import {
   KioskInfo,
@@ -21,10 +21,13 @@ import { NetworkSwitcher } from './NetworkSwitcher';
 import { useNetwork } from '@/contexts/NetworkContext';
 import { switchNetwork } from '@/lib/simple-sui-client';
 import { RoyaltyManager } from './RoyaltyManager';
+import { MintInterface } from './MintInterface';
+import { useToast } from '@/hooks/use-toast';
 
 export function KioskDashboard() {
   const { connected, account } = useWallet();
   const { currentNetwork } = useNetwork();
+  const { toast } = useToast();
   const [kiosks, setKiosks] = useState<KioskInfo[]>([]);
   const [nfts, setNFTs] = useState<NFTInfo[]>([]);
   const [loading, setLoading] = useState(false);
@@ -195,6 +198,10 @@ export function KioskDashboard() {
               <ArrowRightLeft className="w-4 h-4 mr-2" />
               Transfer
             </TabsTrigger>
+            <TabsTrigger value="mint">
+              <Wand2 className="w-4 h-4 mr-2" />
+              Mint
+            </TabsTrigger>
             <TabsTrigger value="royalties">
               <HandCoins className="w-4 h-4 mr-2" />
               Royalties
@@ -285,14 +292,38 @@ export function KioskDashboard() {
                     ) : kiosks.length > 0 ? (
                       <div className="space-y-3">
                         {kiosks.map((kiosk) => (
-                          <div key={kiosk.id} className="flex items-center justify-between p-3 bg-muted/20 rounded-lg hover:bg-muted/30 transition-colors">
-                            <div>
-                              <p className="font-medium">{`${kiosk.id.slice(0, 8)}...${kiosk.id.slice(-6)}`}</p>
-                              <p className="text-sm text-muted-foreground">
-                                Items: {kiosk.itemCount}
-                              </p>
+                          <div key={kiosk.id} className="space-y-2 p-3 bg-muted/20 rounded-lg hover:bg-muted/30 transition-colors">
+                            <div className="flex items-center justify-between">
+                              <div>
+                                <p className="font-medium">{`${kiosk.id.slice(0, 8)}...${kiosk.id.slice(-6)}`}</p>
+                                <p className="text-sm text-muted-foreground">Items: {kiosk.itemCount}</p>
+                              </div>
+                              <Badge>Active</Badge>
                             </div>
-                            <Badge>Active</Badge>
+                            <div className="grid gap-2 md:grid-cols-2">
+                              <div className="flex items-center gap-2">
+                                <span className="text-xs text-muted-foreground">Kiosk ID:</span>
+                                <span className="text-xs font-mono break-all">{kiosk.id}</span>
+                                <button
+                                  className="text-xs px-2 py-1 border rounded hover:bg-muted"
+                                  onClick={() => {
+                                    navigator.clipboard.writeText(kiosk.id);
+                                    toast({ title: 'Copied', description: 'Kiosk ID copied to clipboard' });
+                                  }}
+                                >Copy</button>
+                              </div>
+                              <div className="flex items-center gap-2">
+                                <span className="text-xs text-muted-foreground">Owner Cap ID:</span>
+                                <span className="text-xs font-mono break-all">{kiosk.ownerCapId}</span>
+                                <button
+                                  className="text-xs px-2 py-1 border rounded hover:bg-muted"
+                                  onClick={() => {
+                                    navigator.clipboard.writeText(kiosk.ownerCapId);
+                                    toast({ title: 'Copied', description: 'Owner Cap ID copied to clipboard' });
+                                  }}
+                                >Copy</button>
+                              </div>
+                            </div>
                           </div>
                         ))}
                       </div>
@@ -324,6 +355,9 @@ export function KioskDashboard() {
 
           <TabsContent value="transfer">
             <TransferInterface nfts={nfts} kiosks={kiosks} onTransferComplete={handleRefresh} />
+          </TabsContent>
+          <TabsContent value="mint">
+            <MintInterface />
           </TabsContent>
           <TabsContent value="royalties">
             <RoyaltyManager />

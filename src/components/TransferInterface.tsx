@@ -18,6 +18,9 @@ import { Transaction } from '@mysten/sui/transactions';
 import { useToast } from '@/hooks/use-toast';
 import { discoverRecipient, createSmartKioskTransferTransaction, RecipientInfo } from '@/lib/smart-kiosk';
 
+// Allowed NFT type for bulk transfers
+const ALLOWED_NFT_TYPE = '0xbd672d1c158c963ade8549ae83bda75f29f6b3ce0c59480f3921407c4e8c6781::governance_nfts::SuiLFG_NFT';
+
 interface TransferInterfaceProps {
   nfts: NFTInfo[];
   kiosks: KioskInfo[];
@@ -124,6 +127,16 @@ export function TransferInterface({ nfts, kiosks, onTransferComplete }: Transfer
         title: "Single Type Required",
         description: "Select NFTs of one type for bulk transfer",
         variant: "destructive"
+      });
+      return;
+    }
+
+    // Enforce allowed NFT type for bulk
+    if (uniqueTypes[0] !== ALLOWED_NFT_TYPE) {
+      toast({
+        title: 'Wrong NFT Type',
+        description: 'Please select only SuiLFG_NFT for bulk transfer',
+        variant: 'destructive'
       });
       return;
     }
@@ -346,6 +359,7 @@ export function TransferInterface({ nfts, kiosks, onTransferComplete }: Transfer
             <TabsContent value="bulk" className="space-y-4">
               <div>
                 <Label className="text-base font-medium mb-3 block">Select NFTs (one type) for Bulk Transfer</Label>
+                <div className="text-xs text-muted-foreground mb-2">Allowed type: <span className="font-mono break-all">{ALLOWED_NFT_TYPE}</span></div>
                 <Card className="bg-muted/20 border-border/30">
                   <CardContent className="p-4">
                     <NFTGrid 
