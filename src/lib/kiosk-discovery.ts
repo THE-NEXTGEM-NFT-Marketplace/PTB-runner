@@ -75,7 +75,8 @@ export interface NFTInfo {
 
 // Utility functions
 function isValidWalletAddress(address: string): boolean {
-  return /^0x[a-fA-F0-9]{64}$/.test(address);
+  // Accept any 0x-prefixed hex up to 64 chars to allow non-normalized addresses
+  return /^0x[a-fA-F0-9]{1,64}$/.test(address);
 }
 
 function isValidObjectId(id: string): boolean {
@@ -569,7 +570,9 @@ async function fetchAllOwnedObjects(walletAddress: string): Promise<SuiObjectDat
       }) as unknown as PaginatedObjectsResponse;
     });
     
-    const validObjects = batch.data as unknown as SuiObjectData[];
+    const validObjects = (batch.data as any[])
+      .map((entry: any) => entry?.data)
+      .filter(Boolean) as SuiObjectData[];
     allObjects.push(...validObjects);
 
     cursor = batch.nextCursor;
@@ -730,7 +733,9 @@ export async function discoverUserKiosksAndNFTsProgressive(
 				}) as unknown as PaginatedObjectsResponse;
 			});
 
-			const validObjects = batch.data as unknown as SuiObjectData[];
+			const validObjects = (batch.data as any[])
+				.map((entry: any) => entry?.data)
+				.filter(Boolean) as SuiObjectData[];
 			const nfts = validObjects.map(obj => ({
 				id: (obj as any).objectId,
 				type: (obj as any).type || 'unknown',

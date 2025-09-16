@@ -31,6 +31,7 @@ export function TransferInterface({ nfts, kiosks, onTransferComplete }: Transfer
   const { signAndExecuteTransaction, account } = useWallet();
   const { toast } = useToast();
   const [selectedNFTs, setSelectedNFTs] = useState<NFTInfo[]>([]);
+  const [showOnlyAllowedType, setShowOnlyAllowedType] = useState(false);
   const [recipientAddress, setRecipientAddress] = useState('');
   const [bulkAddresses, setBulkAddresses] = useState('');
   const [recipientInfo, setRecipientInfo] = useState<RecipientInfo | null>(null);
@@ -291,11 +292,16 @@ export function TransferInterface({ nfts, kiosks, onTransferComplete }: Transfer
                 <Card className="bg-muted/20 border-border/30">
                   <CardContent className="p-4">
                     <NFTGrid 
-                      nfts={nfts} 
+                      nfts={showOnlyAllowedType ? nfts.filter(n => n.type === ALLOWED_NFT_TYPE) : nfts}
                       loading={false} 
                       selectable={true}
                       onSelectionChange={setSelectedNFTs}
                     />
+                    <div className="mt-3 flex justify-end">
+                      <Button type="button" variant="outline" size="sm" onClick={() => setShowOnlyAllowedType(!showOnlyAllowedType)}>
+                        {showOnlyAllowedType ? 'Show All Types' : 'Filter to SuiLFG_NFT'}
+                      </Button>
+                    </div>
                   </CardContent>
                 </Card>
               </div>
