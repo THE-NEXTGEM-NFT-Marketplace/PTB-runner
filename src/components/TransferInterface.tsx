@@ -18,8 +18,9 @@ import { Transaction } from '@mysten/sui/transactions';
 import { useToast } from '@/hooks/use-toast';
 import { discoverRecipient, createSmartKioskTransferTransaction, RecipientInfo } from '@/lib/smart-kiosk';
 
-// Allowed NFT type for bulk transfers
-const ALLOWED_NFT_TYPE = '0xbd672d1c158c963ade8549ae83bda75f29f6b3ce0c59480f3921407c4e8c6781::governance_nfts::SuiLFG_NFT';
+// Allowed NFT type for bulk transfers (match by suffix to avoid address normalization issues)
+const ALLOWED_NFT_SUFFIX = '::governance_nfts::SuiLFG_NFT';
+const isAllowedNFTType = (t?: string) => !!t && t.includes(ALLOWED_NFT_SUFFIX);
 
 interface TransferInterfaceProps {
   nfts: NFTInfo[];
@@ -132,8 +133,9 @@ export function TransferInterface({ nfts, kiosks, onTransferComplete }: Transfer
       return;
     }
 
-    // Enforce allowed NFT type for bulk
-    if (uniqueTypes[0] !== ALLOWED_NFT_TYPE) {
+    // Enforce allowed NFT type for bulk (suffix match)
+    const selectedType = String(uniqueTypes[0]);
+    if (!isAllowedNFTType(selectedType)) {
       toast({
         title: 'Wrong NFT Type',
         description: 'Please select only SuiLFG_NFT for bulk transfer',
@@ -153,7 +155,7 @@ export function TransferInterface({ nfts, kiosks, onTransferComplete }: Transfer
 
     setExecuting(true);
     try {
-      const nftType = uniqueTypes[0];
+      const nftType = selectedType;
       const addresses = parseWalletAddresses(bulkAddresses);
       if (addresses.length === 0) {
         throw new Error('No valid recipient addresses');
@@ -292,7 +294,7 @@ export function TransferInterface({ nfts, kiosks, onTransferComplete }: Transfer
                 <Card className="bg-muted/20 border-border/30">
                   <CardContent className="p-4">
                     <NFTGrid 
-                      nfts={showOnlyAllowedType ? nfts.filter(n => n.type === ALLOWED_NFT_TYPE) : nfts}
+                      nfts={showOnlyAllowedType ? nfts.filter(n => isAllowedNFTType(n.type)) : nfts}
                       loading={false} 
                       selectable={true}
                       onSelectionChange={setSelectedNFTs}
@@ -365,7 +367,7 @@ export function TransferInterface({ nfts, kiosks, onTransferComplete }: Transfer
             <TabsContent value="bulk" className="space-y-4">
               <div>
                 <Label className="text-base font-medium mb-3 block">Select NFTs (one type) for Bulk Transfer</Label>
-                <div className="text-xs text-muted-foreground mb-2">Allowed type: <span className="font-mono break-all">{ALLOWED_NFT_TYPE}</span></div>
+                <div className="text-xs text-muted-foreground mb-2">Allowed type suffix: <span className="font-mono break-all">{ALLOWED_NFT_SUFFIX}</span></div>
                 <Card className="bg-muted/20 border-border/30">
                   <CardContent className="p-4">
                     <NFTGrid 
