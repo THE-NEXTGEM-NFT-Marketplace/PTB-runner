@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Wallet, Package, ArrowRightLeft, Plus, RefreshCw, FileText, HandCoins, Wand2 } from 'lucide-react';
+import { Wallet, Package, ArrowRightLeft, Plus, RefreshCw, FileText, HandCoins, Wand2, Send } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import {
   KioskInfo,
@@ -23,6 +23,7 @@ import { switchNetwork } from '@/lib/simple-sui-client';
 import { RoyaltyManager } from './RoyaltyManager';
 import { MintInterface } from './MintInterface';
 import { useToast } from '@/hooks/use-toast';
+import { BulkTransfer } from './BulkTransfer';
 
 export function KioskDashboard() {
   const { connected, account } = useWallet();
@@ -206,6 +207,10 @@ export function KioskDashboard() {
               <HandCoins className="w-4 h-4 mr-2" />
               Royalties
             </TabsTrigger>
+            <TabsTrigger value="bulk-transfer">
+                <Send className="w-4 h-4 mr-2" />
+                Bulk Transfer
+            </TabsTrigger>
           </TabsList>
 
           <TabsContent value="dashboard">
@@ -361,6 +366,9 @@ export function KioskDashboard() {
           </TabsContent>
           <TabsContent value="royalties">
             <RoyaltyManager />
+          </TabsContent>
+          <TabsContent value="bulk-transfer">
+            <BulkTransfer />
           </TabsContent>
         </Tabs>
       </div>
