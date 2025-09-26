@@ -32,7 +32,7 @@ export function PtbRunner() {
   console.log('Total templates:', Object.keys(EXAMPLE_TEMPLATES || {}).length);
 
   const advancedTemplates = Object.entries(EXAMPLE_TEMPLATES || {})
-    .filter(([key]) => ['transferPolicyCreate', 'transferPolicyRule', 'transferPolicyCompleteFixed', 'stakingStake', 'stakingUnstake', 'stakingClaimRewards', 'complexDeFi', 'shareObjectExample', 'witnessExample', 'complexNestedArgs'].includes(key));
+    .filter(([key]) => ['transferPolicyCreate', 'transferPolicyRule', 'transferPolicyCompleteFixed', 'nftStakingStake', 'nftStakingUnstake', 'nftStakingClaimRewards', 'nftStakingComplex', 'nftStakingFromKiosk', 'shareObjectExample', 'witnessExample', 'complexNestedArgs', 'customFunctionExample', 'flexibleArgumentExample'].includes(key));
 
   console.log('Advanced templates count:', advancedTemplates.length);
   console.log('Advanced templates:', advancedTemplates.map(([key, template]) => ({ key, name: template.name })));
@@ -110,33 +110,33 @@ export function PtbRunner() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-subtle p-6">
-      <div className="mx-auto max-w-7xl space-y-6">
+    <div className="min-h-screen bg-gradient-subtle p-4 sm:p-6">
+      <div className="mx-auto max-w-7xl space-y-4 sm:space-y-6">
         {/* Header */}
-        <div className="text-center space-y-4">
-          <div className="inline-flex items-center gap-2 px-4 py-2 bg-gradient-primary rounded-full text-primary-foreground font-semibold shadow-glow">
+        <div className="text-center space-y-3 sm:space-y-4">
+          <div className="inline-flex items-center gap-2 px-3 py-2 sm:px-4 sm:py-2 bg-gradient-primary rounded-full text-primary-foreground font-semibold shadow-glow text-sm sm:text-base">
             <FileText className="w-4 h-4" />
             Sui PTB Runner
           </div>
-          <h1 className="text-4xl font-bold tracking-tight">
+          <h1 className="text-2xl sm:text-3xl lg:text-4xl font-bold tracking-tight">
             Programmable Transaction Block Runner
           </h1>
-          <p className="text-xl text-muted-foreground max-w-2xl mx-auto">
+          <p className="text-base sm:text-lg lg:text-xl text-muted-foreground max-w-2xl mx-auto px-4">
             Execute Sui PTBs from JSON with security-first validation and clear transaction previews.
-            Supports complex operations like transfer policies, staking contracts, and DeFi protocols.
+            Supports complex operations like transfer policies, NFT staking from kiosks, and DeFi protocols.
           </p>
         </div>
 
         {/* Status & Wallet */}
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-4">
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2 sm:gap-4">
             {getStatusBadge()}
             {txResult && (
               <a
                 href={`https://suiexplorer.com/txblock/${txResult}?network=testnet`}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="text-primary hover:text-primary-glow transition-colors"
+                className="text-primary hover:text-primary-glow transition-colors text-sm sm:text-base"
               >
                 View Transaction →
               </a>
@@ -145,7 +145,7 @@ export function PtbRunner() {
           <WalletConnection />
         </div>
 
-        <div className="grid lg:grid-cols-2 gap-6">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
           {/* JSON Input */}
           <Card className="bg-gradient-card border-border/50 shadow-card">
             <CardHeader>
@@ -162,24 +162,25 @@ export function PtbRunner() {
                 value={jsonInput}
                 onChange={(e) => setJsonInput(e.target.value)}
                 placeholder="Paste your PTB JSON here..."
-                className="min-h-[400px] code-editor bg-editor-background border-border/50 focus:border-primary/50 transition-colors"
+                className="min-h-[300px] sm:min-h-[400px] code-editor bg-editor-background border-border/50 focus:border-primary/50 transition-colors text-sm sm:text-base"
                 disabled={status === "executing"}
               />
               
-              <div className="flex gap-2">
+              <div className="flex flex-col sm:flex-row gap-2">
                 <Button
                   onClick={handleParse}
                   disabled={!jsonInput.trim() || status === "executing" || !connected}
-                  className="flex items-center gap-2 bg-primary hover:bg-primary-glow transition-smooth"
+                  className="flex items-center justify-center gap-2 bg-primary hover:bg-primary-glow transition-smooth w-full sm:w-auto"
                 >
                   <Play className="w-4 h-4" />
                   Execute PTB
                 </Button>
-                
+
                 <Button
                   variant="outline"
                   onClick={() => setJsonInput("")}
                   disabled={status === "executing"}
+                  className="w-full sm:w-auto"
                 >
                   Clear
                 </Button>
@@ -214,7 +215,7 @@ export function PtbRunner() {
                   <h3 className="text-sm font-semibold mb-2">Basic Operations</h3>
                   {(() => {
                     const basicTemplates = Object.entries(EXAMPLE_TEMPLATES || {})
-                      .filter(([key]) => !['transferPolicyCreate', 'transferPolicyRule', 'transferPolicyCompleteFixed', 'stakingStake', 'stakingUnstake', 'stakingClaimRewards', 'complexDeFi', 'shareObjectExample', 'witnessExample', 'complexNestedArgs'].includes(key));
+                      .filter(([key]) => !['transferPolicyCreate', 'transferPolicyRule', 'transferPolicyCompleteFixed', 'nftStakingStake', 'nftStakingUnstake', 'nftStakingClaimRewards', 'nftStakingComplex', 'nftStakingFromKiosk', 'shareObjectExample', 'witnessExample', 'complexNestedArgs', 'customFunctionExample', 'flexibleArgumentExample'].includes(key));
 
                     return basicTemplates.length > 0 ? (
                       basicTemplates.map(([key, template]) => (
@@ -288,7 +289,7 @@ export function PtbRunner() {
                     <div className="p-3 bg-muted/50 rounded-lg">
                       <h4 className="font-semibold mb-2">Supported Commands:</h4>
                       <ul className="text-xs space-y-1 text-muted-foreground">
-                        <li>• <code>moveCall</code> - Call any Sui Move function (transfer policies, staking, etc.)</li>
+                        <li>• <code>moveCall</code> - Call <strong>ANY</strong> Sui Move function with any arguments</li>
                         <li>• <code>transferObjects</code> - Transfer objects to recipients</li>
                         <li>• <code>splitCoins</code> - Split coins into amounts</li>
                         <li>• <code>mergeCoins</code> - Merge coins together</li>
@@ -317,10 +318,20 @@ export function PtbRunner() {
                     </div>
 
                     <div className="p-3 bg-muted/50 rounded-lg">
+                      <h4 className="font-semibold mb-2">🚀 Universal Compatibility:</h4>
+                      <ul className="text-xs space-y-1 text-muted-foreground">
+                        <li>• Works with <strong>ANY</strong> Sui Move function</li>
+                        <li>• Supports <strong>ANY</strong> argument pattern or type signature</li>
+                        <li>• No hardcoded function limitations</li>
+                        <li>• Extensible to any future Sui features</li>
+                      </ul>
+                    </div>
+
+                    <div className="p-3 bg-muted/50 rounded-lg">
                       <h4 className="font-semibold mb-2">Advanced Features:</h4>
                       <ul className="text-xs space-y-1 text-muted-foreground">
                         <li>• <code>Transfer Policies</code> - Create and manage NFT transfer policies</li>
-                        <li>• <code>Staking Contracts</code> - Stake, unstake, and claim rewards</li>
+                        <li>• <code>NFT Staking</code> - Stake NFTs from kiosks, claim rewards, unstake</li>
                         <li>• <code>DeFi Protocols</code> - Complex multi-step operations</li>
                         <li>• <code>Generic Types</code> - Support for generic Move functions</li>
                         <li>• <code>Complex Arguments</code> - Nested structures and vectors</li>

@@ -231,63 +231,72 @@ export const EXAMPLE_TEMPLATES = {
     }, null, 2)
   },
 
-  stakingStake: {
-    name: "Staking: Stake Tokens",
-    description: "Stake tokens in a staking contract",
+  nftStakingStake: {
+    name: "NFT Staking: Stake NFT",
+    description: "Stake NFT from kiosk into staking contract vault",
     json: JSON.stringify({
       "commands": [
         {
           "type": "moveCall",
-          "target": "0xSTAKING_PACKAGE::staking::stake",
+          "target": "0xSTAKING_PACKAGE::staking::stake_nft",
           "arguments": [
-            { "type": "object", "value": "0xSTAKING_POOL" },
-            { "type": "object", "value": "0xTOKEN_TO_STAKE" },
-            { "type": "pure", "value": 365 }
+            { "type": "object", "value": "0xSTAKING_VAULT" },
+            { "type": "object", "value": "0xUSER_KIOSK" },
+            { "type": "object", "value": "0xUSER_KIOSK_CAP" },
+            { "type": "object", "value": "0xNFT_TO_STAKE" },
+            { "type": "pure", "value": 30 }
           ],
-          "typeArguments": ["0xTOKEN_PACKAGE::token::TOKEN"],
+          "typeArguments": ["0xNFT_PACKAGE::nft::NFT"],
           "assign": "stake_position"
         }
       ]
     }, null, 2)
   },
 
-  stakingUnstake: {
-    name: "Staking: Unstake Tokens",
-    description: "Unstake tokens from staking contract",
+  nftStakingUnstake: {
+    name: "NFT Staking: Unstake NFT",
+    description: "Unstake NFT from staking contract vault",
     json: JSON.stringify({
       "commands": [
         {
           "type": "moveCall",
-          "target": "0xSTAKING_PACKAGE::staking::unstake",
+          "target": "0xSTAKING_PACKAGE::staking::unstake_nft",
           "arguments": [
-            { "type": "object", "value": "0xSTAKING_POOL" },
+            { "type": "object", "value": "0xSTAKING_VAULT" },
+            { "type": "object", "value": "0xUSER_KIOSK" },
+            { "type": "object", "value": "0xUSER_KIOSK_CAP" },
             { "type": "object", "value": "0xSTAKE_POSITION" }
           ],
-          "typeArguments": ["0xTOKEN_PACKAGE::token::TOKEN"],
-          "assign": "unstaked_tokens"
+          "typeArguments": ["0xNFT_PACKAGE::nft::NFT"],
+          "assign": "unstaked_nft"
         },
         {
-          "type": "transferObjects",
-          "objects": [{ "type": "result", "ref": "unstaked_tokens" }],
-          "recipient": "0xUSER_ADDRESS"
+          "type": "moveCall",
+          "target": "0x2::kiosk::place",
+          "arguments": [
+            { "type": "object", "value": "0xUSER_KIOSK" },
+            { "type": "object", "value": "0xUSER_KIOSK_CAP" },
+            { "type": "result", "ref": "unstaked_nft" }
+          ],
+          "typeArguments": ["0xNFT_PACKAGE::nft::NFT"]
         }
       ]
     }, null, 2)
   },
 
-  stakingClaimRewards: {
-    name: "Staking: Claim Rewards",
-    description: "Claim staking rewards",
+  nftStakingClaimRewards: {
+    name: "NFT Staking: Claim Rewards",
+    description: "Claim rewards from NFT staking",
     json: JSON.stringify({
       "commands": [
         {
           "type": "moveCall",
           "target": "0xSTAKING_PACKAGE::staking::claim_rewards",
           "arguments": [
-            { "type": "object", "value": "0xSTAKING_POOL" },
+            { "type": "object", "value": "0xSTAKING_VAULT" },
             { "type": "object", "value": "0xSTAKE_POSITION" }
           ],
-          "typeArguments": ["0xTOKEN_PACKAGE::token::TOKEN"],
+          "typeArguments": ["0xNFT_PACKAGE::nft::NFT"],
           "assign": "rewards"
         },
         {
@@ -299,42 +308,82 @@ export const EXAMPLE_TEMPLATES = {
     }, null, 2)
   },
 
-  complexDeFi: {
-    name: "DeFi: Complex Multi-Step",
-    description: "Complex DeFi operation with multiple steps",
+  nftStakingComplex: {
+    name: "NFT Staking: Complete Flow",
+    description: "Stake NFT, claim rewards, and unstake in one transaction",
     json: JSON.stringify({
       "commands": [
         {
-          "type": "splitCoins",
-          "coin": { "type": "object", "value": "0xSUI_COIN" },
-          "amounts": [1000000000],
-          "assign": "sui_for_staking"
-        },
-        {
           "type": "moveCall",
-          "target": "0xSTAKING_PACKAGE::staking::stake",
+          "target": "0xSTAKING_PACKAGE::staking::stake_nft",
           "arguments": [
-            { "type": "object", "value": "0xSTAKING_POOL" },
-            { "type": "result", "ref": "sui_for_staking" },
+            { "type": "object", "value": "0xSTAKING_VAULT" },
+            { "type": "object", "value": "0xUSER_KIOSK" },
+            { "type": "object", "value": "0xUSER_KIOSK_CAP" },
+            { "type": "object", "value": "0xNFT_TO_STAKE" },
             { "type": "pure", "value": 30 }
           ],
-          "typeArguments": ["0x2::sui::SUI"],
+          "typeArguments": ["0xNFT_PACKAGE::nft::NFT"],
           "assign": "stake_position"
         },
         {
           "type": "moveCall",
           "target": "0xSTAKING_PACKAGE::staking::claim_rewards",
           "arguments": [
-            { "type": "object", "value": "0xSTAKING_POOL" },
+            { "type": "object", "value": "0xSTAKING_VAULT" },
             { "type": "result", "ref": "stake_position" }
           ],
-          "typeArguments": ["0x2::sui::SUI"],
+          "typeArguments": ["0xNFT_PACKAGE::nft::NFT"],
           "assign": "staking_rewards"
         },
         {
           "type": "transferObjects",
           "objects": [{ "type": "result", "ref": "staking_rewards" }],
           "recipient": "0xUSER_ADDRESS"
+        },
+        {
+          "type": "moveCall",
+          "target": "0xSTAKING_PACKAGE::staking::unstake_nft",
+          "arguments": [
+            { "type": "object", "value": "0xSTAKING_VAULT" },
+            { "type": "object", "value": "0xUSER_KIOSK" },
+            { "type": "object", "value": "0xUSER_KIOSK_CAP" },
+            { "type": "result", "ref": "stake_position" }
+          ],
+          "typeArguments": ["0xNFT_PACKAGE::nft::NFT"],
+          "assign": "unstaked_nft"
+        },
+        {
+          "type": "moveCall",
+          "target": "0x2::kiosk::place",
+          "arguments": [
+            { "type": "object", "value": "0xUSER_KIOSK" },
+            { "type": "object", "value": "0xUSER_KIOSK_CAP" },
+            { "type": "result", "ref": "unstaked_nft" }
+          ],
+          "typeArguments": ["0xNFT_PACKAGE::nft::NFT"]
+        }
+      ]
+    }, null, 2)
+  },
+
+  nftStakingFromKiosk: {
+    name: "NFT Staking: From Kiosk",
+    description: "Stake NFT directly from user's kiosk into staking vault",
+    json: JSON.stringify({
+      "commands": [
+        {
+          "type": "moveCall",
+          "target": "0xSTAKING_PACKAGE::staking::stake_nft_from_kiosk",
+          "arguments": [
+            { "type": "object", "value": "0xSTAKING_VAULT" },
+            { "type": "object", "value": "0xUSER_KIOSK" },
+            { "type": "object", "value": "0xUSER_KIOSK_CAP" },
+            { "type": "object", "value": "0xNFT_IN_KIOSK" },
+            { "type": "pure", "value": 90 }
+          ],
+          "typeArguments": ["0xNFT_PACKAGE::nft::NFT"],
+          "assign": "stake_position"
         }
       ]
     }, null, 2)
@@ -418,6 +467,83 @@ export const EXAMPLE_TEMPLATES = {
             }
           ],
           "typeArguments": ["0xPACKAGE::module::ComplexType"]
+        }
+      ]
+    }, null, 2)
+  },
+
+  customFunctionExample: {
+    name: "Custom Function Call",
+    description: "Call any Move function with any argument pattern",
+    json: JSON.stringify({
+      "commands": [
+        {
+          "type": "moveCall",
+          "target": "0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef::my_module::my_function",
+          "arguments": [
+            { "type": "pure", "value": "Hello World", "encoding": "utf8" },
+            { "type": "object", "value": "0xabcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890" },
+            { "type": "pure", "value": 42, "moveType": "u64" },
+            {
+              "type": "vector",
+              "elements": [
+                { "type": "pure", "value": "0x1111111111111111111111111111111111111111111111111111111111111111" },
+                { "type": "pure", "value": "0x2222222222222222222222222222222222222222222222222222222222222222" }
+              ]
+            },
+            {
+              "type": "option",
+              "some": { "type": "object", "value": "0xoptional_object_id" }
+            }
+          ],
+          "typeArguments": [
+            "0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef::my_types::MyType",
+            "0x2::sui::SUI"
+          ],
+          "assign": "custom_result"
+        },
+        {
+          "type": "moveCall",
+          "target": "0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef::other_module::process_result",
+          "arguments": [
+            { "type": "result", "ref": "custom_result" },
+            { "type": "pure", "value": true }
+          ],
+          "typeArguments": ["0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef::my_types::MyType"]
+        }
+      ]
+    }, null, 2)
+  },
+
+  flexibleArgumentExample: {
+    name: "Flexible Arguments Demo",
+    description: "Demonstrates all argument types in one function call",
+    json: JSON.stringify({
+      "commands": [
+        {
+          "type": "moveCall",
+          "target": "0xPACKAGE::module::flexible_function",
+          "arguments": [
+            { "type": "pure", "value": "string_arg", "encoding": "ascii" },
+            { "type": "pure", "value": 123, "moveType": "u64" },
+            { "type": "pure", "value": true },
+            { "type": "object", "value": "0xobject_id" },
+            {
+              "type": "vector",
+              "elements": [
+                { "type": "pure", "value": 1 },
+                { "type": "pure", "value": 2 },
+                { "type": "pure", "value": 3 }
+              ]
+            },
+            {
+              "type": "option",
+              "some": { "type": "pure", "value": "has_value" }
+            },
+            { "type": "witness", "value": "0xwitness_type" }
+          ],
+          "typeArguments": ["0xPACKAGE::types::MyType"],
+          "assign": "flexible_result"
         }
       ]
     }, null, 2)

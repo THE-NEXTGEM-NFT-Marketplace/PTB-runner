@@ -211,6 +211,12 @@ export function KioskDashboard() {
                 <Send className="w-4 h-4 mr-2" />
                 Bulk Transfer
             </TabsTrigger>
+            <TabsTrigger value="ptb-runner" asChild>
+              <Link to="/ptb" className="flex items-center">
+                <FileText className="w-4 h-4 mr-2" />
+                PTB Runner
+              </Link>
+            </TabsTrigger>
           </TabsList>
 
           <TabsContent value="dashboard">
@@ -369,6 +375,22 @@ export function KioskDashboard() {
           </TabsContent>
           <TabsContent value="bulk-transfer">
             <BulkTransfer />
+          </TabsContent>
+          <TabsContent value="ptb-runner">
+            <div className="text-center py-8">
+              <FileText className="w-16 h-16 mx-auto text-muted-foreground mb-4" />
+              <h3 className="text-lg font-semibold mb-2">PTB Runner</h3>
+              <p className="text-muted-foreground mb-4">
+                Access the Programmable Transaction Block Runner
+              </p>
+              <Link
+                to="/ptb"
+                className="inline-flex items-center px-4 py-2 bg-primary text-primary-foreground rounded-md hover:bg-primary/90 transition-colors"
+              >
+                <FileText className="w-4 h-4 mr-2" />
+                Open PTB Runner
+              </Link>
+            </div>
           </TabsContent>
         </Tabs>
       </div>
