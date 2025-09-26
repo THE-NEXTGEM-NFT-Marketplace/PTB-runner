@@ -421,5 +421,51 @@ export const EXAMPLE_TEMPLATES = {
         }
       ]
     }, null, 2)
+  },
+
+  transferPolicyComplete: {
+    name: "Transfer Policy: Complete Setup",
+    description: "Create, share, and transfer a transfer policy",
+    json: JSON.stringify({
+      "commands": [
+        {
+          "type": "moveCall",
+          "target": "0x2::transfer_policy::new",
+          "arguments": [
+            { "type": "object", "value": "0xPUBLISHER_ID" }
+          ],
+          "typeArguments": ["0xPACKAGE::module::NFTType"],
+          "assign": "policy"
+        },
+        {
+          "type": "moveCall",
+          "target": "0x2::transfer_policy::share_policy",
+          "arguments": [
+            { "type": "result", "ref": "policy" }
+          ],
+          "typeArguments": ["0xPACKAGE::module::NFTType"]
+        },
+        {
+          "type": "transferObjects",
+          "objects": [
+            { "type": "result", "ref": "policy" }
+          ],
+          "recipient": "0xUSER_ADDRESS"
+        }
+      ]
+    }, null, 2)
+  },
+
+  shareObjectExample: {
+    name: "Share Object",
+    description: "Make an object shared on the Sui network",
+    json: JSON.stringify({
+      "commands": [
+        {
+          "type": "shareObject",
+          "object": { "type": "object", "value": "0xOBJECT_TO_SHARE" }
+        }
+      ]
+    }, null, 2)
   }
 };

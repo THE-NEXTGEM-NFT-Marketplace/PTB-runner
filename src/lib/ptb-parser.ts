@@ -16,7 +16,7 @@ export interface PtbArgument {
 }
 
 export interface PtbCommand {
-  type: "moveCall" | "transferObjects" | "splitCoins" | "mergeCoins";
+  type: "moveCall" | "transferObjects" | "splitCoins" | "mergeCoins" | "shareObject";
   assign?: string;
   
   // moveCall specific
@@ -35,6 +35,9 @@ export interface PtbCommand {
   // mergeCoins specific
   destination?: PtbArgument;
   sources?: PtbArgument[];
+
+  // shareObject specific
+  object?: PtbArgument;
 }
 
 export interface PtbJson {
@@ -86,7 +89,7 @@ function validateCommand(command: any, index: number): PtbCommand {
     throw new Error(`${commandIndex}: Command must have a 'type' string property`);
   }
   
-  const validTypes = ['moveCall', 'transferObjects', 'splitCoins', 'mergeCoins'];
+  const validTypes = ['moveCall', 'transferObjects', 'splitCoins', 'mergeCoins', 'shareObject'];
   if (!validTypes.includes(command.type)) {
     throw new Error(`${commandIndex}: Invalid command type '${command.type}'. Must be one of: ${validTypes.join(', ')}`);
   }
@@ -100,6 +103,8 @@ function validateCommand(command: any, index: number): PtbCommand {
       return validateSplitCoins(command, commandIndex);
     case 'mergeCoins':
       return validateMergeCoins(command, commandIndex);
+    case 'shareObject':
+      return validateShareObject(command, commandIndex);
     default:
       throw new Error(`${commandIndex}: Unsupported command type: ${command.type}`);
   }
@@ -195,17 +200,28 @@ function validateMergeCoins(command: any, commandIndex: string): PtbCommand {
   if (!command.destination) {
     throw new Error(`${commandIndex}: mergeCoins requires a 'destination' object`);
   }
-  
+
   if (!command.sources || !Array.isArray(command.sources)) {
     throw new Error(`${commandIndex}: mergeCoins requires a 'sources' array`);
   }
-  
+
   return {
     type: 'mergeCoins',
     destination: validateArgument(command.destination, `${commandIndex}, destination`),
-    sources: command.sources.map((src: any, srcIndex: number) => 
+    sources: command.sources.map((src: any, srcIndex: number) =>
       validateArgument(src, `${commandIndex}, source ${srcIndex + 1}`)
     ),
+  };
+}
+
+function validateShareObject(command: any, commandIndex: string): PtbCommand {
+  if (!command.object) {
+    throw new Error(`${commandIndex}: shareObject requires an 'object' argument`);
+  }
+
+  return {
+    type: 'shareObject',
+    object: validateArgument(command.object, `${commandIndex}, object`),
   };
 }
 

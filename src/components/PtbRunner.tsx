@@ -267,6 +267,7 @@ export function PtbRunner() {
                         <li>• <code>transferObjects</code> - Transfer objects to recipients</li>
                         <li>• <code>splitCoins</code> - Split coins into amounts</li>
                         <li>• <code>mergeCoins</code> - Merge coins together</li>
+                        <li>• <code>shareObject</code> - Make objects shared on the network</li>
                       </ul>
                     </div>
                     

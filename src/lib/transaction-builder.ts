@@ -19,8 +19,8 @@ export function constructTransactionBlock(commands: PtbCommand[]): Transaction {
 }
 
 function executeCommand(
-  txb: Transaction, 
-  command: PtbCommand, 
+  txb: Transaction,
+  command: PtbCommand,
   resultMap: Map<string, any>
 ): any {
   switch (command.type) {
@@ -32,6 +32,8 @@ function executeCommand(
       return executeSplitCoins(txb, command, resultMap);
     case 'mergeCoins':
       return executeMergeCoins(txb, command, resultMap);
+    case 'shareObject':
+      return executeShareObject(txb, command, resultMap);
     default:
       throw new Error(`Unsupported command type: ${(command as any).type}`);
   }
@@ -87,18 +89,31 @@ function executeSplitCoins(
 }
 
 function executeMergeCoins(
-  txb: Transaction, 
-  command: PtbCommand, 
+  txb: Transaction,
+  command: PtbCommand,
   resultMap: Map<string, any>
 ): void {
   if (!command.destination || !command.sources) {
     throw new Error("mergeCoins command missing destination or sources");
   }
-  
+
   const destination = resolveArgument(txb, command.destination, resultMap);
   const sources = command.sources.map(src => resolveArgument(txb, src, resultMap));
-  
+
   txb.mergeCoins(destination, sources);
+}
+
+function executeShareObject(
+  txb: Transaction,
+  command: PtbCommand,
+  resultMap: Map<string, any>
+): any {
+  if (!command.object) {
+    throw new Error("shareObject command missing object");
+  }
+
+  const object = resolveArgument(txb, command.object, resultMap);
+  return txb.shareObject(object);
 }
 
 function resolveArgument(
