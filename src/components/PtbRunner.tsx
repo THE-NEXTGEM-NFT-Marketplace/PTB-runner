@@ -27,6 +27,16 @@ export function PtbRunner() {
 
   const { connected, signAndExecuteTransaction } = useWallet();
 
+  // Debug: Log available templates
+  console.log('Available templates:', Object.keys(EXAMPLE_TEMPLATES || {}));
+  console.log('Total templates:', Object.keys(EXAMPLE_TEMPLATES || {}).length);
+
+  const advancedTemplates = Object.entries(EXAMPLE_TEMPLATES || {})
+    .filter(([key]) => ['transferPolicyCreate', 'transferPolicyRule', 'transferPolicyCompleteFixed', 'stakingStake', 'stakingUnstake', 'stakingClaimRewards', 'complexDeFi', 'shareObjectExample', 'witnessExample', 'complexNestedArgs'].includes(key));
+
+  console.log('Advanced templates count:', advancedTemplates.length);
+  console.log('Advanced templates:', advancedTemplates.map(([key, template]) => ({ key, name: template.name })));
+
   const handleParse = () => {
     try {
       setError("");
@@ -194,7 +204,7 @@ export function PtbRunner() {
             </CardHeader>
             <CardContent>
               <Tabs defaultValue="examples" className="w-full">
-                <TabsList className="grid w-full grid-cols-3">
+                <TabsList className="grid w-full grid-cols-3 mb-4">
                   <TabsTrigger value="examples">Basic</TabsTrigger>
                   <TabsTrigger value="advanced">Advanced</TabsTrigger>
                   <TabsTrigger value="schema">Schema</TabsTrigger>
@@ -202,60 +212,75 @@ export function PtbRunner() {
                 
                 <TabsContent value="examples" className="space-y-3 mt-4">
                   <h3 className="text-sm font-semibold mb-2">Basic Operations</h3>
-                  {Object.entries(EXAMPLE_TEMPLATES)
-                    .filter(([key]) => !['transferPolicyCreate', 'transferPolicyRule', 'stakingStake', 'stakingUnstake', 'stakingClaimRewards', 'complexDeFi'].includes(key))
-                    .map(([key, template]) => (
-                    <div
-                      key={key}
-                      className="p-4 border border-border/50 rounded-lg hover:border-primary/50 transition-colors cursor-pointer group"
-                      onClick={() => handleCopyExample(template.json)}
-                    >
-                      <div className="flex items-start justify-between">
-                        <div>
-                          <h4 className="font-semibold text-sm group-hover:text-primary transition-colors">
-                            {template.name}
-                          </h4>
-                          <p className="text-xs text-muted-foreground mt-1">
-                            {template.description}
-                          </p>
+                  {(() => {
+                    const basicTemplates = Object.entries(EXAMPLE_TEMPLATES || {})
+                      .filter(([key]) => !['transferPolicyCreate', 'transferPolicyRule', 'transferPolicyCompleteFixed', 'stakingStake', 'stakingUnstake', 'stakingClaimRewards', 'complexDeFi', 'shareObjectExample', 'witnessExample', 'complexNestedArgs'].includes(key));
+
+                    return basicTemplates.length > 0 ? (
+                      basicTemplates.map(([key, template]) => (
+                        <div
+                          key={key}
+                          className="p-4 border border-border/50 rounded-lg hover:border-primary/50 transition-colors cursor-pointer group"
+                          onClick={() => handleCopyExample(template.json)}
+                        >
+                          <div className="flex items-start justify-between">
+                            <div>
+                              <h4 className="font-semibold text-sm group-hover:text-primary transition-colors">
+                                {template.name}
+                              </h4>
+                              <p className="text-xs text-muted-foreground mt-1">
+                                {template.description}
+                              </p>
+                            </div>
+                            {copied ? (
+                              <Check className="w-4 h-4 text-success" />
+                            ) : (
+                              <Copy className="w-4 h-4 text-muted-foreground group-hover:text-primary transition-colors" />
+                            )}
+                          </div>
                         </div>
-                        {copied ? (
-                          <Check className="w-4 h-4 text-success" />
-                        ) : (
-                          <Copy className="w-4 h-4 text-muted-foreground group-hover:text-primary transition-colors" />
-                        )}
+                      ))
+                    ) : (
+                      <div className="p-8 text-center text-muted-foreground">
+                        <p>No basic templates available</p>
+                        <p className="text-sm mt-2">Check console for debugging information</p>
                       </div>
-                    </div>
-                  ))}
+                    );
+                  })()}
                 </TabsContent>
 
                 <TabsContent value="advanced" className="space-y-3 mt-4">
                   <h3 className="text-sm font-semibold mb-2">Transfer Policies & Staking</h3>
-                  {Object.entries(EXAMPLE_TEMPLATES)
-                    .filter(([key]) => ['transferPolicyCreate', 'transferPolicyRule', 'stakingStake', 'stakingUnstake', 'stakingClaimRewards', 'complexDeFi'].includes(key))
-                    .map(([key, template]) => (
-                    <div
-                      key={key}
-                      className="p-4 border border-border/50 rounded-lg hover:border-primary/50 transition-colors cursor-pointer group"
-                      onClick={() => handleCopyExample(template.json)}
-                    >
-                      <div className="flex items-start justify-between">
-                        <div>
-                          <h4 className="font-semibold text-sm group-hover:text-primary transition-colors">
-                            {template.name}
-                          </h4>
-                          <p className="text-xs text-muted-foreground mt-1">
-                            {template.description}
-                          </p>
+                  {advancedTemplates.length > 0 ? (
+                    advancedTemplates.map(([key, template]) => (
+                      <div
+                        key={key}
+                        className="p-4 border border-border/50 rounded-lg hover:border-primary/50 transition-colors cursor-pointer group"
+                        onClick={() => handleCopyExample(template.json)}
+                      >
+                        <div className="flex items-start justify-between">
+                          <div>
+                            <h4 className="font-semibold text-sm group-hover:text-primary transition-colors">
+                              {template.name}
+                            </h4>
+                            <p className="text-xs text-muted-foreground mt-1">
+                              {template.description}
+                            </p>
+                          </div>
+                          {copied ? (
+                            <Check className="w-4 h-4 text-success" />
+                          ) : (
+                            <Copy className="w-4 h-4 text-muted-foreground group-hover:text-primary transition-colors" />
+                          )}
                         </div>
-                        {copied ? (
-                          <Check className="w-4 h-4 text-success" />
-                        ) : (
-                          <Copy className="w-4 h-4 text-muted-foreground group-hover:text-primary transition-colors" />
-                        )}
                       </div>
+                    ))
+                  ) : (
+                    <div className="p-8 text-center text-muted-foreground">
+                      <p>No advanced templates available</p>
+                      <p className="text-sm mt-2">Check console for debugging information</p>
                     </div>
-                  ))}
+                  )}
                 </TabsContent>
                 
                 <TabsContent value="schema" className="mt-4">

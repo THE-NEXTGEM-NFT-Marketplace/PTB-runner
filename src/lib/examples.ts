@@ -467,5 +467,34 @@ export const EXAMPLE_TEMPLATES = {
         }
       ]
     }, null, 2)
+  },
+
+  transferPolicyCompleteFixed: {
+    name: "Transfer Policy: Complete (Fixed)",
+    description: "Create, share, and transfer a transfer policy with correct result referencing",
+    json: JSON.stringify({
+      "commands": [
+        {
+          "type": "moveCall",
+          "target": "0x2::transfer_policy::new",
+          "arguments": [
+            { "type": "object", "value": "0xPUBLISHER_ID" }
+          ],
+          "typeArguments": ["0xPACKAGE::module::NFTType"],
+          "assign": "policy"
+        },
+        {
+          "type": "shareObject",
+          "object": { "type": "result", "ref": "policy" }
+        },
+        {
+          "type": "transferObjects",
+          "objects": [
+            { "type": "result", "ref": "policy" }
+          ],
+          "recipient": "0xUSER_ADDRESS"
+        }
+      ]
+    }, null, 2)
   }
 };
