@@ -34,6 +34,8 @@ function executeCommand(
       return executeMergeCoins(txb, command, resultMap);
     case 'shareObject':
       return executeShareObject(txb, command, resultMap);
+    case 'splitObjects':
+      return executeSplitObjects(txb, command, resultMap);
     default:
       throw new Error(`Unsupported command type: ${(command as any).type}`);
   }
@@ -114,6 +116,44 @@ function executeShareObject(
 
   const object = resolveArgument(txb, command.object, resultMap);
   return txb.shareObject(object);
+}
+
+function executeSplitObjects(
+  txb: Transaction,
+  command: PtbCommand,
+  resultMap: Map<string, any>
+): any {
+  if (!command.objects || command.objects.length !== 1) {
+    throw new Error("splitObjects command must have exactly one object");
+  }
+
+  if (!command.assign || !Array.isArray(command.assign)) {
+    throw new Error("splitObjects command missing assign array");
+  }
+
+  const multiObjectResult = resolveArgument(txb, command.objects[0], resultMap);
+
+  // In Sui, multi-object returns are typically arrays or tuples
+  // For splitObjects, we assume the result contains multiple objects that need to be split
+  if (!Array.isArray(multiObjectResult)) {
+    throw new Error("splitObjects expects the referenced result to be an array of objects");
+  }
+
+  if (multiObjectResult.length !== command.assign.length) {
+    throw new Error(`splitObjects: expected ${command.assign.length} objects but got ${multiObjectResult.length}`);
+  }
+
+  // Split the multi-object result into individual objects and assign them to variables
+  const splitObjects: any[] = [];
+  for (let i = 0; i < multiObjectResult.length; i++) {
+    const objectName = command.assign[i];
+    if (objectName) {
+      resultMap.set(objectName, multiObjectResult[i]);
+      splitObjects.push(multiObjectResult[i]);
+    }
+  }
+
+  return splitObjects;
 }
 
 function resolveArgument(

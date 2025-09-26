@@ -561,20 +561,59 @@ export const EXAMPLE_TEMPLATES = {
             { "type": "object", "value": "0xPUBLISHER_ID" }
           ],
           "typeArguments": ["0xPACKAGE::module::NFTType"],
-          "assign": "policy"
+          "assign": "policyAndCap"
         },
         {
-          "type": "moveCall",
-          "target": "0x2::transfer_policy::share_policy",
-          "arguments": [
-            { "type": "result", "ref": "policy" }
+          "type": "splitObjects",
+          "objects": [
+            { "type": "result", "ref": "policyAndCap" }
           ],
-          "typeArguments": ["0xPACKAGE::module::NFTType"]
+          "assign": ["policy", "cap"]
+        },
+        {
+          "type": "shareObject",
+          "object": { "type": "result", "ref": "policy" }
         },
         {
           "type": "transferObjects",
           "objects": [
-            { "type": "result", "ref": "policy" }
+            { "type": "result", "ref": "cap" }
+          ],
+          "recipient": "0xUSER_ADDRESS"
+        }
+      ]
+    }, null, 2)
+  },
+
+  splitObjectsExample: {
+    name: "Split Objects Example",
+    description: "Split multi-object results into individual variables",
+    json: JSON.stringify({
+      "commands": [
+        {
+          "type": "moveCall",
+          "target": "0x2::transfer_policy::new",
+          "arguments": [
+            { "type": "object", "value": "0xPUBLISHER_ID" }
+          ],
+          "typeArguments": ["0xPACKAGE::module::NFTType"],
+          "assign": "policyAndCap"
+        },
+        {
+          "type": "splitObjects",
+          "objects": [
+            { "type": "result", "ref": "policyAndCap" }
+          ],
+          "assign": ["policy", "cap"]
+        },
+        {
+          "type": "shareObject",
+          "object": { "type": "result", "ref": "policy" }
+        },
+        {
+          "type": "transferObjects",
+          "objects": [
+            { "type": "result", "ref": "cap" }
           ],
           "recipient": "0xUSER_ADDRESS"
         }

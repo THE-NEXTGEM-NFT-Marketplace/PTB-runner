@@ -32,7 +32,7 @@ export function PtbRunner() {
   console.log('Total templates:', Object.keys(EXAMPLE_TEMPLATES || {}).length);
 
   const advancedTemplates = Object.entries(EXAMPLE_TEMPLATES || {})
-    .filter(([key]) => ['transferPolicyCreate', 'transferPolicyRule', 'transferPolicyCompleteFixed', 'nftStakingStake', 'nftStakingUnstake', 'nftStakingClaimRewards', 'nftStakingComplex', 'nftStakingFromKiosk', 'shareObjectExample', 'witnessExample', 'complexNestedArgs', 'customFunctionExample', 'flexibleArgumentExample'].includes(key));
+    .filter(([key]) => ['transferPolicyCreate', 'transferPolicyRule', 'transferPolicyCompleteFixed', 'splitObjectsExample', 'nftStakingStake', 'nftStakingUnstake', 'nftStakingClaimRewards', 'nftStakingComplex', 'nftStakingFromKiosk', 'shareObjectExample', 'witnessExample', 'complexNestedArgs', 'customFunctionExample', 'flexibleArgumentExample'].includes(key));
 
   console.log('Advanced templates count:', advancedTemplates.length);
   console.log('Advanced templates:', advancedTemplates.map(([key, template]) => ({ key, name: template.name })));
@@ -175,7 +175,7 @@ export function PtbRunner() {
                   <Play className="w-4 h-4" />
                   Execute PTB
                 </Button>
-
+                
                 <Button
                   variant="outline"
                   onClick={() => setJsonInput("")}
@@ -215,7 +215,7 @@ export function PtbRunner() {
                   <h3 className="text-sm font-semibold mb-2">Basic Operations</h3>
                   {(() => {
                     const basicTemplates = Object.entries(EXAMPLE_TEMPLATES || {})
-                      .filter(([key]) => !['transferPolicyCreate', 'transferPolicyRule', 'transferPolicyCompleteFixed', 'nftStakingStake', 'nftStakingUnstake', 'nftStakingClaimRewards', 'nftStakingComplex', 'nftStakingFromKiosk', 'shareObjectExample', 'witnessExample', 'complexNestedArgs', 'customFunctionExample', 'flexibleArgumentExample'].includes(key));
+                      .filter(([key]) => !['transferPolicyCreate', 'transferPolicyRule', 'transferPolicyCompleteFixed', 'splitObjectsExample', 'nftStakingStake', 'nftStakingUnstake', 'nftStakingClaimRewards', 'nftStakingComplex', 'nftStakingFromKiosk', 'shareObjectExample', 'witnessExample', 'complexNestedArgs', 'customFunctionExample', 'flexibleArgumentExample'].includes(key));
 
                     return basicTemplates.length > 0 ? (
                       basicTemplates.map(([key, template]) => (
@@ -254,27 +254,27 @@ export function PtbRunner() {
                   <h3 className="text-sm font-semibold mb-2">Transfer Policies & Staking</h3>
                   {advancedTemplates.length > 0 ? (
                     advancedTemplates.map(([key, template]) => (
-                      <div
-                        key={key}
-                        className="p-4 border border-border/50 rounded-lg hover:border-primary/50 transition-colors cursor-pointer group"
-                        onClick={() => handleCopyExample(template.json)}
-                      >
-                        <div className="flex items-start justify-between">
-                          <div>
-                            <h4 className="font-semibold text-sm group-hover:text-primary transition-colors">
-                              {template.name}
-                            </h4>
-                            <p className="text-xs text-muted-foreground mt-1">
-                              {template.description}
-                            </p>
-                          </div>
-                          {copied ? (
-                            <Check className="w-4 h-4 text-success" />
-                          ) : (
-                            <Copy className="w-4 h-4 text-muted-foreground group-hover:text-primary transition-colors" />
-                          )}
+                    <div
+                      key={key}
+                      className="p-4 border border-border/50 rounded-lg hover:border-primary/50 transition-colors cursor-pointer group"
+                      onClick={() => handleCopyExample(template.json)}
+                    >
+                      <div className="flex items-start justify-between">
+                        <div>
+                          <h4 className="font-semibold text-sm group-hover:text-primary transition-colors">
+                            {template.name}
+                          </h4>
+                          <p className="text-xs text-muted-foreground mt-1">
+                            {template.description}
+                          </p>
                         </div>
+                        {copied ? (
+                          <Check className="w-4 h-4 text-success" />
+                        ) : (
+                          <Copy className="w-4 h-4 text-muted-foreground group-hover:text-primary transition-colors" />
+                        )}
                       </div>
+                    </div>
                     ))
                   ) : (
                     <div className="p-8 text-center text-muted-foreground">
@@ -294,6 +294,7 @@ export function PtbRunner() {
                         <li>• <code>splitCoins</code> - Split coins into amounts</li>
                         <li>• <code>mergeCoins</code> - Merge coins together</li>
                         <li>• <code>shareObject</code> - Make objects shared on the network</li>
+                        <li>• <code>splitObjects</code> - Split multi-object results into individual variables</li>
                       </ul>
                     </div>
                     
@@ -322,6 +323,7 @@ export function PtbRunner() {
                       <ul className="text-xs space-y-1 text-muted-foreground">
                         <li>• Works with <strong>ANY</strong> Sui Move function</li>
                         <li>• Supports <strong>ANY</strong> argument pattern or type signature</li>
+                        <li>• Handles multi-object returns with <code>splitObjects</code></li>
                         <li>• No hardcoded function limitations</li>
                         <li>• Extensible to any future Sui features</li>
                       </ul>

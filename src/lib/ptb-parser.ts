@@ -16,8 +16,8 @@ export interface PtbArgument {
 }
 
 export interface PtbCommand {
-  type: "moveCall" | "transferObjects" | "splitCoins" | "mergeCoins" | "shareObject";
-  assign?: string;
+  type: "moveCall" | "transferObjects" | "splitCoins" | "mergeCoins" | "shareObject" | "splitObjects";
+  assign?: string | string[];
   
   // moveCall specific
   target?: string;
@@ -38,6 +38,9 @@ export interface PtbCommand {
 
   // shareObject specific
   object?: PtbArgument;
+
+  // splitObjects specific
+  objects?: PtbArgument[];
 }
 
 export interface PtbJson {
@@ -89,7 +92,7 @@ function validateCommand(command: any, index: number): PtbCommand {
     throw new Error(`${commandIndex}: Command must have a 'type' string property`);
   }
   
-  const validTypes = ['moveCall', 'transferObjects', 'splitCoins', 'mergeCoins', 'shareObject'];
+  const validTypes = ['moveCall', 'transferObjects', 'splitCoins', 'mergeCoins', 'shareObject', 'splitObjects'];
   if (!validTypes.includes(command.type)) {
     throw new Error(`${commandIndex}: Invalid command type '${command.type}'. Must be one of: ${validTypes.join(', ')}`);
   }
@@ -105,6 +108,8 @@ function validateCommand(command: any, index: number): PtbCommand {
       return validateMergeCoins(command, commandIndex);
     case 'shareObject':
       return validateShareObject(command, commandIndex);
+    case 'splitObjects':
+      return validateSplitObjects(command, commandIndex);
     default:
       throw new Error(`${commandIndex}: Unsupported command type: ${command.type}`);
   }
@@ -222,6 +227,37 @@ function validateShareObject(command: any, commandIndex: string): PtbCommand {
   return {
     type: 'shareObject',
     object: validateArgument(command.object, `${commandIndex}, object`),
+  };
+}
+
+function validateSplitObjects(command: any, commandIndex: string): PtbCommand {
+  if (!command.objects || !Array.isArray(command.objects)) {
+    throw new Error(`${commandIndex}: splitObjects requires an 'objects' array`);
+  }
+
+  if (command.objects.length !== 1) {
+    throw new Error(`${commandIndex}: splitObjects 'objects' array must contain exactly one element`);
+  }
+
+  if (!command.assign || !Array.isArray(command.assign)) {
+    throw new Error(`${commandIndex}: splitObjects requires an 'assign' array property`);
+  }
+
+  if (command.assign.length === 0) {
+    throw new Error(`${commandIndex}: splitObjects 'assign' array cannot be empty`);
+  }
+
+  // Validate that all assign elements are strings
+  for (let i = 0; i < command.assign.length; i++) {
+    if (typeof command.assign[i] !== 'string') {
+      throw new Error(`${commandIndex}: splitObjects 'assign' array element ${i} must be a string`);
+    }
+  }
+
+  return {
+    type: 'splitObjects',
+    objects: [validateArgument(command.objects[0], `${commandIndex}, objects[0]`)],
+    assign: command.assign,
   };
 }
 
