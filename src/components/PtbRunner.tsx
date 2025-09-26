@@ -112,7 +112,8 @@ export function PtbRunner() {
             Programmable Transaction Block Runner
           </h1>
           <p className="text-xl text-muted-foreground max-w-2xl mx-auto">
-            Execute Sui PTBs from JSON with security-first validation and clear transaction previews
+            Execute Sui PTBs from JSON with security-first validation and clear transaction previews.
+            Supports complex operations like transfer policies, staking contracts, and DeFi protocols.
           </p>
         </div>
 
@@ -193,13 +194,46 @@ export function PtbRunner() {
             </CardHeader>
             <CardContent>
               <Tabs defaultValue="examples" className="w-full">
-                <TabsList className="grid w-full grid-cols-2">
-                  <TabsTrigger value="examples">Examples</TabsTrigger>
+                <TabsList className="grid w-full grid-cols-3">
+                  <TabsTrigger value="examples">Basic</TabsTrigger>
+                  <TabsTrigger value="advanced">Advanced</TabsTrigger>
                   <TabsTrigger value="schema">Schema</TabsTrigger>
                 </TabsList>
                 
                 <TabsContent value="examples" className="space-y-3 mt-4">
-                  {Object.entries(EXAMPLE_TEMPLATES).map(([key, template]) => (
+                  <h3 className="text-sm font-semibold mb-2">Basic Operations</h3>
+                  {Object.entries(EXAMPLE_TEMPLATES)
+                    .filter(([key]) => !['transferPolicyCreate', 'transferPolicyRule', 'stakingStake', 'stakingUnstake', 'stakingClaimRewards', 'complexDeFi'].includes(key))
+                    .map(([key, template]) => (
+                    <div
+                      key={key}
+                      className="p-4 border border-border/50 rounded-lg hover:border-primary/50 transition-colors cursor-pointer group"
+                      onClick={() => handleCopyExample(template.json)}
+                    >
+                      <div className="flex items-start justify-between">
+                        <div>
+                          <h4 className="font-semibold text-sm group-hover:text-primary transition-colors">
+                            {template.name}
+                          </h4>
+                          <p className="text-xs text-muted-foreground mt-1">
+                            {template.description}
+                          </p>
+                        </div>
+                        {copied ? (
+                          <Check className="w-4 h-4 text-success" />
+                        ) : (
+                          <Copy className="w-4 h-4 text-muted-foreground group-hover:text-primary transition-colors" />
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </TabsContent>
+
+                <TabsContent value="advanced" className="space-y-3 mt-4">
+                  <h3 className="text-sm font-semibold mb-2">Transfer Policies & Staking</h3>
+                  {Object.entries(EXAMPLE_TEMPLATES)
+                    .filter(([key]) => ['transferPolicyCreate', 'transferPolicyRule', 'stakingStake', 'stakingUnstake', 'stakingClaimRewards', 'complexDeFi'].includes(key))
+                    .map(([key, template]) => (
                     <div
                       key={key}
                       className="p-4 border border-border/50 rounded-lg hover:border-primary/50 transition-colors cursor-pointer group"
@@ -229,7 +263,7 @@ export function PtbRunner() {
                     <div className="p-3 bg-muted/50 rounded-lg">
                       <h4 className="font-semibold mb-2">Supported Commands:</h4>
                       <ul className="text-xs space-y-1 text-muted-foreground">
-                        <li>• <code>moveCall</code> - Call Sui Move functions</li>
+                        <li>• <code>moveCall</code> - Call any Sui Move function (transfer policies, staking, etc.)</li>
                         <li>• <code>transferObjects</code> - Transfer objects to recipients</li>
                         <li>• <code>splitCoins</code> - Split coins into amounts</li>
                         <li>• <code>mergeCoins</code> - Merge coins together</li>
@@ -239,9 +273,34 @@ export function PtbRunner() {
                     <div className="p-3 bg-muted/50 rounded-lg">
                       <h4 className="font-semibold mb-2">Argument Types:</h4>
                       <ul className="text-xs space-y-1 text-muted-foreground">
-                        <li>• <code>pure</code> - Literal values (string, number, boolean)</li>
+                        <li>• <code>pure</code> - Literal values (string, number, boolean, bigint, u8-u256)</li>
                         <li>• <code>object</code> - Object IDs</li>
                         <li>• <code>result</code> - Reference to previous command results</li>
+                        <li>• <code>vector</code> - Arrays of objects or values</li>
+                        <li>• <code>option</code> - Optional values (some/none)</li>
+                        <li>• <code>witness</code> - One-time witness objects</li>
+                      </ul>
+                    </div>
+
+                    <div className="p-3 bg-muted/50 rounded-lg">
+                      <h4 className="font-semibold mb-2">Pure Argument Options:</h4>
+                      <ul className="text-xs space-y-1 text-muted-foreground">
+                        <li>• <code>encoding</code> - "utf8", "ascii", "hex" for string encoding</li>
+                        <li>• <code>moveType</code> - Explicit type specification for pure values</li>
+                      </ul>
+                    </div>
+
+                    <div className="p-3 bg-muted/50 rounded-lg">
+                      <h4 className="font-semibold mb-2">Advanced Features:</h4>
+                      <ul className="text-xs space-y-1 text-muted-foreground">
+                        <li>• <code>Transfer Policies</code> - Create and manage NFT transfer policies</li>
+                        <li>• <code>Staking Contracts</code> - Stake, unstake, and claim rewards</li>
+                        <li>• <code>DeFi Protocols</code> - Complex multi-step operations</li>
+                        <li>• <code>Generic Types</code> - Support for generic Move functions</li>
+                        <li>• <code>Complex Arguments</code> - Nested structures and vectors</li>
+                        <li>• <code>Witness Objects</code> - One-time witness patterns</li>
+                        <li>• <code>String Encoding</code> - ASCII, UTF8, and hex support</li>
+                        <li>• <code>All Move Types</code> - u8, u16, u32, u64, u128, u256 support</li>
                       </ul>
                     </div>
                   </div>

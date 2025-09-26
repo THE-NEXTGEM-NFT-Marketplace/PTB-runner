@@ -102,44 +102,112 @@ function executeMergeCoins(
 }
 
 function resolveArgument(
-  txb: Transaction, 
-  arg: PtbArgument, 
+  txb: Transaction,
+  arg: PtbArgument,
   resultMap: Map<string, any>
 ): any {
   switch (arg.type) {
     case 'pure':
-      // Handle different value types for pure arguments
+      // Handle different value types for pure arguments with enhanced options
       if (typeof arg.value === 'string') {
         // Auto-detect Sui address-like strings and encode as address
         if (isLikelySuiAddress(arg.value)) {
           return txb.pure.address(arg.value);
         }
-        return txb.pure.string(arg.value);
+
+        // Handle explicit encoding options
+        if (arg.encoding === 'ascii') {
+          return txb.pure.ascii(arg.value);
+        } else if (arg.encoding === 'hex') {
+          return txb.pure(Array.from(Buffer.from(arg.value, 'hex')));
+        } else {
+          // Default to UTF-8 string
+          return txb.pure.string(arg.value);
+        }
       } else if (typeof arg.value === 'number') {
-        return txb.pure.u64(arg.value);
+        // Handle different number sizes
+        if (Number.isInteger(arg.value)) {
+          if (arg.value >= 0 && arg.value <= 255) {
+            return txb.pure.u8(arg.value);
+          } else if (arg.value >= 0 && arg.value <= 65535) {
+            return txb.pure.u16(arg.value);
+          } else if (arg.value >= 0 && arg.value <= 4294967295) {
+            return txb.pure.u32(arg.value);
+          } else if (arg.value >= 0 && arg.value <= Number.MAX_SAFE_INTEGER) {
+            return txb.pure.u64(BigInt(arg.value));
+          } else {
+            return txb.pure.u128(BigInt(arg.value));
+          }
+        } else {
+          return txb.pure.u64(BigInt(Math.round(arg.value)));
+        }
       } else if (typeof arg.value === 'boolean') {
         return txb.pure.bool(arg.value);
+      } else if (typeof arg.value === 'bigint') {
+        return txb.pure.u256(arg.value);
+      } else if (Array.isArray(arg.value)) {
+        // Handle byte arrays
+        return txb.pure(arg.value);
       } else {
         return txb.pure(arg.value);
       }
-      
+
     case 'object':
       if (typeof arg.value !== 'string') {
         throw new Error(`Object argument value must be a string, got: ${typeof arg.value}`);
       }
       return txb.object(arg.value);
-      
+
     case 'result':
       if (!arg.ref) {
         throw new Error("Result argument missing ref property");
       }
-      
+
       const result = resultMap.get(arg.ref);
       if (result === undefined) {
         throw new Error(`Result reference '${arg.ref}' not found`);
       }
       return result;
-      
+
+    case 'vector':
+      if (!arg.elements || !Array.isArray(arg.elements)) {
+        throw new Error("Vector argument missing elements array");
+      }
+
+      if (arg.elements.length === 0) {
+        throw new Error("Vector argument cannot be empty - use Option<T> for optional empty vectors");
+      }
+
+      try {
+        const resolvedElements = arg.elements.map(elem =>
+          resolveArgument(txb, elem, resultMap)
+        );
+        return resolvedElements;
+      } catch (error) {
+        throw new Error(`Vector element resolution failed: ${error instanceof Error ? error.message : String(error)}`);
+      }
+
+    case 'option':
+      if (arg.none) {
+        return { None: true }; // Sui's Option::None as a struct
+      } else if (arg.some) {
+        try {
+          return { Some: resolveArgument(txb, arg.some, resultMap) }; // Sui's Option::Some as a struct
+        } catch (error) {
+          throw new Error(`Option value resolution failed: ${error instanceof Error ? error.message : String(error)}`);
+        }
+      } else {
+        throw new Error("Option argument must have either 'none' or 'some' property");
+      }
+
+    case 'witness':
+      if (typeof arg.value !== 'string') {
+        throw new Error(`Witness argument value must be a string, got: ${typeof arg.value}`);
+      }
+      // Witness objects in Sui are typically used for one-time witness patterns
+      // We create a pure value with the witness type
+      return txb.object(arg.value);
+
     default:
       throw new Error(`Unsupported argument type: ${(arg as any).type}`);
   }

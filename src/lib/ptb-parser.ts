@@ -1,9 +1,18 @@
 // PTB JSON Parser - Converts JSON to structured commands for Sui TransactionBlock
 
 export interface PtbArgument {
-  type: "pure" | "object" | "result";
+  type: "pure" | "object" | "result" | "vector" | "option" | "witness";
   value?: any;
   ref?: string;
+  elements?: PtbArgument[]; // For vector type
+  some?: PtbArgument; // For option type
+  none?: boolean; // For option type
+  // For nested structures
+  fields?: Record<string, PtbArgument>;
+  structType?: string;
+  // For enhanced pure arguments
+  encoding?: "utf8" | "ascii" | "hex";
+  moveType?: string; // For explicit type specification
 }
 
 export interface PtbCommand {
@@ -209,25 +218,75 @@ function validateArgument(arg: any, context: string): PtbArgument {
     throw new Error(`${context}: Argument must have a 'type' string property`);
   }
   
-  const validArgTypes = ['pure', 'object', 'result'];
+  const validArgTypes = ['pure', 'object', 'result', 'vector', 'option', 'witness'];
   if (!validArgTypes.includes(arg.type)) {
     throw new Error(`${context}: Invalid argument type '${arg.type}'. Must be one of: ${validArgTypes.join(', ')}`);
   }
   
   switch (arg.type) {
     case 'pure':
+      if (arg.value === undefined) {
+        throw new Error(`${context}: 'pure' argument requires a 'value' property`);
+      }
+      return {
+        type: arg.type,
+        value: arg.value,
+        encoding: arg.encoding,
+        moveType: arg.moveType
+      };
+
     case 'object':
       if (arg.value === undefined) {
-        throw new Error(`${context}: '${arg.type}' argument requires a 'value' property`);
+        throw new Error(`${context}: 'object' argument requires a 'value' property`);
       }
       return { type: arg.type, value: arg.value };
-      
+
     case 'result':
       if (!arg.ref || typeof arg.ref !== 'string') {
         throw new Error(`${context}: 'result' argument requires a 'ref' string property`);
       }
       return { type: arg.type, ref: arg.ref };
-      
+
+    case 'vector':
+      if (!Array.isArray(arg.elements)) {
+        throw new Error(`${context}: 'vector' argument requires an 'elements' array property`);
+      }
+      if (arg.elements.length === 0) {
+        throw new Error(`${context}: 'vector' argument cannot be empty`);
+      }
+      return {
+        type: arg.type,
+        elements: arg.elements.map((elem: any, idx: number) =>
+          validateArgument(elem, `${context}, element ${idx}`)
+        )
+      };
+
+    case 'option':
+      if (arg.none === true) {
+        if (arg.some) {
+          throw new Error(`${context}: 'option' argument cannot have both 'none' and 'some' properties`);
+        }
+        return { type: arg.type, none: true };
+      } else if (arg.some) {
+        return {
+          type: arg.type,
+          some: validateArgument(arg.some, `${context}, some value`)
+        };
+      } else {
+        throw new Error(`${context}: 'option' argument requires either 'none: true' or 'some' property`);
+      }
+
+    case 'witness':
+      // Witness objects are used for one-time witness patterns in Sui
+      if (arg.value === undefined) {
+        throw new Error(`${context}: 'witness' argument requires a 'value' property (the witness type)`);
+      }
+      return {
+        type: arg.type,
+        value: arg.value,
+        structType: arg.structType
+      };
+
     default:
       throw new Error(`${context}: Unsupported argument type: ${arg.type}`);
   }
